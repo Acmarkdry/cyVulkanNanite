@@ -8,10 +8,8 @@ file(GLOB Common "../src/*.cpp" "../src/*.h")
 
 find_package(OpenMesh CONFIG REQUIRED)
 
-# 打印一下找到的内容，方便排查 (在 CMake 输出窗口查看)
+# 正确的调试信息（imported target 不提供这些变量）
 message(STATUS "OpenMesh Found: ${OpenMesh_FOUND}")
-message(STATUS "OpenMesh Libs: ${OPENMESH_INCLUDE_DIR}")
-message(STATUS "OpenMesh Include: ${OPENMESH_LIBRARIES}")
 
 set(KTX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../external/ktx)
 set(KTX_SOURCES
@@ -25,24 +23,25 @@ set(KTX_SOURCES
 
 add_library(base STATIC ${BASE_SRC} ${KTX_SOURCES} ${Common} ${NaniteMesh})
 
-# ========================================================
-# [修改 2] 显式包含头文件路径
-# 防止编译时报 "OpenMesh/Core/Mesh/..." not found
-# ========================================================
-target_include_directories(base PUBLIC ${OPENMESH_INCLUDE_DIR})
+# # ========================================================
+# # [关键修复] 静态库必须定义 OM_STATIC_BUILD
+# # ========================================================
+# target_compile_definitions(base PUBLIC OM_STATIC_BUILD)
 
 if(WIN32)
     target_link_libraries(base PUBLIC 
         ${Vulkan_LIBRARY} 
-        ${WINLIBS} 
-        ${OPENMESH_LIBRARIES}
+        ${WINLIBS}
+        OpenMeshCore      # <-- 使用 imported target，会自动传递 include 路径
+        OpenMeshTools     # <-- 同上
     )
 else(WIN32)
-    target_link_libraries(base 
+    target_link_libraries(base PUBLIC
         ${Vulkan_LIBRARY} 
         ${XCB_LIBRARIES} 
         ${WAYLAND_CLIENT_LIBRARIES} 
         ${CMAKE_THREAD_LIBS_INIT}
-        ${OPENMESH_LIBRARIES}
+        OpenMeshCore
+        OpenMeshTools
     )
 endif(WIN32)
