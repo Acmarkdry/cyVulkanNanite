@@ -1203,9 +1203,6 @@ void vkglTF::Model::loadFromFile(std::string filename, vks::VulkanDevice *device
 #endif
 	bool fileLoaded = gltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename);
 
-	std::vector<uint32_t> indexBuffer;
-	std::vector<Vertex> vertexBuffer;
-
 	if (fileLoaded) {
 		if (!(fileLoadingFlags & FileLoadingFlags::DontLoadImages)) {
 			loadImages(gltfModel, device, transferQueue);

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Mesh 
+namespace Nanite 
 {
 	class NaniteScene 
 	{
