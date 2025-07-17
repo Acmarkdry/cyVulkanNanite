@@ -5,7 +5,7 @@ namespace vks
 {
 	class descriptorTools
 	{
-	public:
+		public:
 	
 	};	
 }

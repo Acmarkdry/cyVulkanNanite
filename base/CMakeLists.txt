@@ -34,6 +34,7 @@ if(WIN32)
         ${WINLIBS}
         OpenMeshCore      # <-- 使用 imported target，会自动传递 include 路径
         OpenMeshTools     # <-- 同上
+        Metis
     )
 else(WIN32)
     target_link_libraries(base PUBLIC
