@@ -1,8 +1,5 @@
 #include "VulkanDescriptorManager.h"
 
-VulkanDescriptorManager* VulkanDescriptorManager::instance = nullptr;
-
-
 void VulkanDescriptorManager::destroy()
 {
 	if (instance != nullptr)
@@ -22,7 +19,7 @@ void VulkanDescriptorManager::addSetLayout(const std::string& setName, const std
 	{
 		throw std::runtime_error("VulkanDescriptorManager::addSetLayout: invalid number of descriptor sets");
 	}
-	if (descriptorSetLayoutBindings.count(setName))
+	if (descriptorSetLayoutBindings.contains(setName))
 	{
 		throw std::runtime_error("VulkanDescriptorManager::addSetLayout: two same name descriptor set");
 	}
@@ -92,7 +89,7 @@ void VulkanDescriptorManager::writeToSet(const std::string& layoutName, uint32_t
 
 const VkDescriptorSet& VulkanDescriptorManager::getSet(const std::string& layoutName, uint32_t set)
 {
-	if (descriptorSets.count(layoutName))
+	if (descriptorSets.contains(layoutName))
 	{
 		return descriptorSets[layoutName][set];
 	}
@@ -104,7 +101,7 @@ const VkDescriptorSet& VulkanDescriptorManager::getSet(const std::string& layout
 
 const VkDescriptorSetLayout& VulkanDescriptorManager::getSetLayout(const std::string& layoutName)
 {
-	if (descriptorSetLayouts.count(layoutName))
+	if (descriptorSetLayouts.contains(layoutName))
 	{
 		return descriptorSetLayouts[layoutName];
 	}

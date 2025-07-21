@@ -12,6 +12,7 @@ namespace vks
 
 		void createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty, VkDeviceSize srcBufferSize,  void* srcBufferData, 
 				VkBufferUsageFlags targetMemoryProperty, Buffer &targetStaingBuffer);
+		
 	};	
 }
 

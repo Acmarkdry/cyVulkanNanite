@@ -24,3 +24,6 @@ public:
 private:
 	static T* instance;
 };
+
+template<typename T>
+T* Singleton<T>::instance = nullptr;
