@@ -1,7 +1,7 @@
 /*
-* Vulkan texture loader for KTX files
+* Vulkan texture loader
 *
-* Copyright (C) 2016-2025 by Sascha Willems - www.saschawillems.de
+* Copyright(C) by Sascha Willems - www.saschawillems.de
 *
 * This code is licensed under the MIT license(MIT) (http://opensource.org/licenses/MIT)
 */
@@ -56,7 +56,8 @@ class Texture2D : public Texture
 	    vks::VulkanDevice *device,
 	    VkQueue            copyQueue,
 	    VkImageUsageFlags  imageUsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
-	    VkImageLayout      imageLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	    VkImageLayout      imageLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	    bool               forceLinear     = false);
 	void fromBuffer(
 	    void *             buffer,
 	    VkDeviceSize       bufferSize,

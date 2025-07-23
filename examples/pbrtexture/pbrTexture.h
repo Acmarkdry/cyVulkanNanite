@@ -2,6 +2,8 @@
 #include "vulkanexamplebase.h"
 #include "VulkanglTFModel.h"
 
+class VulkanDescriptorManager;
+
 class PBRTexture: public VulkanExampleBase
 {
 	public:
@@ -31,8 +33,7 @@ class PBRTexture: public VulkanExampleBase
 		vks::Buffer scene;
 		vks::Buffer skybox;
 		vks::Buffer params;
-	};
-	std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers;
+	} uniformBuffers;
 
 	struct UniformDataMatrices {
 		glm::mat4 projection;
@@ -53,13 +54,6 @@ class PBRTexture: public VulkanExampleBase
 		VkPipeline pbr{ VK_NULL_HANDLE };
 	} pipelines;
 
-	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	struct DescriptorSets {
-		VkDescriptorSet scene{ VK_NULL_HANDLE };
-		VkDescriptorSet skybox{ VK_NULL_HANDLE };
-	};
-	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets{};
-
 	PBRTexture() : VulkanExampleBase()
 	{
 		title = "Textured PBR with IBL";
@@ -71,29 +65,7 @@ class PBRTexture: public VulkanExampleBase
 		camera.setPosition({ 0.7f, 0.1f, 1.7f });
 	}
 
-	~PBRTexture()
-	{
-		if (device) {
-			vkDestroyPipeline(device, pipelines.skybox, nullptr);
-			vkDestroyPipeline(device, pipelines.pbr, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-			textures.environmentCube.destroy();
-			textures.irradianceCube.destroy();
-			textures.prefilteredCube.destroy();
-			textures.lutBrdf.destroy();
-			textures.albedoMap.destroy();
-			textures.normalMap.destroy();
-			textures.aoMap.destroy();
-			textures.metallicMap.destroy();
-			textures.roughnessMap.destroy();
-			for (auto& buffer : uniformBuffers) {
-				buffer.scene.destroy();
-				buffer.params.destroy();
-				buffer.skybox.destroy();
-			}
-		}
-	}
+	~PBRTexture();
 
 	virtual void getEnabledFeatures() override;
 	void loadAssets();
@@ -109,9 +81,11 @@ class PBRTexture: public VulkanExampleBase
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers();
 	void updateUniformBuffers();
+	void updateParams();
 	void prepare();
-	void buildCommandBuffer();
+	void buildCommandBuffers();
 	virtual void render();
+	virtual void viewChanged() override;
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
 
 	void createHizBuffer();

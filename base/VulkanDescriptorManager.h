@@ -20,10 +20,10 @@ public:
 	const VkDescriptorSetLayout& getSetLayout(const std::string& layoutName);
 
 private:
-	static VulkanDescriptorManager* instance;
 	VkDevice device = nullptr;
 	VkDescriptorPool descriptorPool = nullptr;
 	std::unordered_map<std::string, std::vector<VkDescriptorSet>> descriptorSets;
 	std::unordered_map<std::string, VkDescriptorSetLayout> descriptorSetLayouts;
 	std::unordered_map<std::string, std::pair<std::vector<VkDescriptorSetLayoutBinding>, uint32_t>> descriptorSetLayoutBindings;
 };
+
