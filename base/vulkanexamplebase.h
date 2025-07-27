@@ -165,6 +165,7 @@ public:
 	CommandLineParser commandLineParser;
 	
 	VkQueue& GetQueue(){return queue;}
+	VkDevice& GetDevice() {return device;}
 	
 	/** @brief Last frame time measured using a high performance timer (if available) */
 	float frameTimer = 1.0f;

@@ -14,7 +14,7 @@ void VulkanDescriptorManager::destroy()
 	}
 }
 
-void VulkanDescriptorManager::addSetLayout(const std::string& setName, const std::vector<VkDescriptorSetLayoutBinding>& setBindings, uint32_t numSets)
+void VulkanDescriptorManager::addSetLayout(const DescriptorType setName, const std::vector<VkDescriptorSetLayoutBinding>& setBindings, uint32_t numSets)
 {
 	auto newLayout = std::make_pair(setBindings, numSets);
 	if (numSets < 1)
@@ -73,7 +73,7 @@ void VulkanDescriptorManager::createLayoutsAndSets(VkDevice& device)
 	}
 }
 
-void VulkanDescriptorManager::writeToSet(const std::string& layoutName, uint32_t set, uint32_t binding,
+void VulkanDescriptorManager::writeToSet(const DescriptorType layoutName, uint32_t set, uint32_t binding,
 	VkDescriptorBufferInfo* buffer)
 {
 	auto key = descriptorSetLayoutBindings[layoutName].first[binding].descriptorType;
@@ -81,7 +81,7 @@ void VulkanDescriptorManager::writeToSet(const std::string& layoutName, uint32_t
 	vkUpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 }
 
-void VulkanDescriptorManager::writeToSet(const std::string& layoutName, uint32_t set, uint32_t binding,
+void VulkanDescriptorManager::writeToSet(const DescriptorType layoutName, uint32_t set, uint32_t binding,
 	VkDescriptorImageInfo* image)
 {
 	auto key = descriptorSetLayoutBindings[layoutName].first[binding].descriptorType;
@@ -89,7 +89,7 @@ void VulkanDescriptorManager::writeToSet(const std::string& layoutName, uint32_t
 	vkUpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 }
 
-const VkDescriptorSet& VulkanDescriptorManager::getSet(const std::string& layoutName, uint32_t set)
+const VkDescriptorSet& VulkanDescriptorManager::getSet(const DescriptorType layoutName, uint32_t set)
 {
 	if (descriptorSets.contains(layoutName))
 	{
@@ -101,7 +101,7 @@ const VkDescriptorSet& VulkanDescriptorManager::getSet(const std::string& layout
 	}
 }
 
-const VkDescriptorSetLayout& VulkanDescriptorManager::getSetLayout(const std::string& layoutName)
+const VkDescriptorSetLayout& VulkanDescriptorManager::getSetLayout(const DescriptorType layoutName)
 {
 	if (descriptorSetLayouts.contains(layoutName))
 	{
