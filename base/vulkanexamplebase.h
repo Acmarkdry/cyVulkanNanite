@@ -92,8 +92,6 @@ private:
 	void destroyCommandBuffers();
 	std::string shaderDir = "glsl";
 protected:
-	// Returns the path to the root of the glsl or hlsl shader directory.
-	std::string getShadersPath() const;
 
 	// Frame counter to display fps
 	uint32_t frameCounter = 0;
@@ -155,6 +153,11 @@ protected:
 	std::vector<VkFence> waitFences;
 	bool requiresStencil{ false };
 public:
+	// Returns the path to the root of the glsl or hlsl shader directory.
+	std::string getShadersPath() const;
+	
+	VkPipelineCache& GetPipelineCache() { return pipelineCache;}
+	
 	bool prepared = false;
 	bool resized = false;
 	bool viewUpdated = false;

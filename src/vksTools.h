@@ -17,6 +17,11 @@ namespace vks
 		void static setPbrDescriptor(PBRTexture &pbrTexture);
 		
 		VkImageSubresourceRange static genDepthSubresourceRange();
+		
+		void static generateBRDFLUT(PBRTexture& pbrTexture);
+		void static generateIrradianceCube(PBRTexture& pbrTexture);
+		void static generatePrefilteredCube(PBRTexture& pbrTexture);
+		
 	};	
 }
 
