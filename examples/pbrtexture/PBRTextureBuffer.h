@@ -1,4 +1,6 @@
 ﻿#pragma once
+#include <unordered_set>
+
 #include "VulkanglTFModel.h"
 #include "VulkanTexture.h"
 
@@ -53,6 +55,19 @@ namespace vks
 	{
 		VkPipeline skybox{ VK_NULL_HANDLE };
 		VkPipeline pbr{ VK_NULL_HANDLE };
+	};
+	
+	class VulkanResourceTracker
+	{
+	private:
+		std::unordered_set<VkImageView> imageViewSet;
+	
+	public:		
+		void createImageView(VkDevice& device, const VkImageViewCreateInfo& pCreateInfo, VkImageView& imageView);
+		
+		void destroyImageView(VkDevice& device, VkImageView& view);
+		
+		void checkLeaks();
 	};
 	
 }
