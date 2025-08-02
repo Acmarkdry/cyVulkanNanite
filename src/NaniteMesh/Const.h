@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <unordered_map>
+#include "glm/glm.hpp"
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include "metis.h"
 
@@ -58,6 +59,16 @@ namespace Nanite
     class ClusterInfo
     {
         public:
+	        alignas(16) glm::vec3 pMinWorld = glm::vec3(FLT_MAX);
+	        alignas(16) glm::vec3 pMaxWorld = glm::vec3(-FLT_MAX);
+	        alignas(4) uint32_t triangleIndicesStart;
+	        alignas(4) uint32_t triangleIndicesEnd;
+	        
+	        void mergeAABB(const glm::vec3& pMin, const glm::vec3& pMax)
+	        {
+				pMinWorld = glm::min(pMinWorld, pMin);
+				pMaxWorld = glm::max(pMinWorld, pMax);	
+	        }
     };
 
     class ErrorInfo
