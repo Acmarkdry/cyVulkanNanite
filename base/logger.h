@@ -9,6 +9,9 @@
 #include <iomanip>
 #include <memory>
 #include <cstdarg>
+#ifdef _WIN32
+	#include <windows.h>
+#endif
 
 namespace Log
 {
@@ -32,8 +35,6 @@ namespace Log
 	namespace Color
 	{
 #ifdef _WIN32
-#include <windows.h>
-
 		inline void SetColor(int color)
 		{
 			static HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -308,21 +309,3 @@ namespace Log
 // 条件日志
 #define LOG_IF(condition, level) if(condition) LOG_##level
 #define LOG_ASSERT(condition, msg) if(!(condition)) { LOG_FATAL << "Assertion failed: " << #condition << " - " << msg; std::abort(); }
-
-// Vulkan 专用宏
-#define VK_CHECK(result) \
-    do { \
-        VkResult res = (result); \
-        if (res != VK_SUCCESS) { \
-            LOG_ERROR << "Vulkan error: " << res << " at " << #result; \
-        } \
-    } while(0)
-
-#define VK_CHECK_FATAL(result) \
-    do { \
-        VkResult res = (result); \
-        if (res != VK_SUCCESS) { \
-            LOG_FATAL << "Vulkan fatal error: " << res << " at " << #result; \
-            std::abort(); \
-        } \
-    } while(0)
