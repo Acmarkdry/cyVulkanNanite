@@ -1,8 +1,18 @@
 ﻿#pragma once
 #include <memory>
+#include <vulkan/vulkan_core.h>
+
 #include "Cluster.h"
 #include "ClusterGroup.h"
 #include "Const.h"
+#include "NaniteMesh.h"
+
+class VulkanExampleBase;
+
+namespace vks
+{
+	struct VulkanDevice;
+}
 
 namespace Nanite
 {
@@ -36,6 +46,13 @@ namespace Nanite
         void getBoundingSphere(Cluster& cluster);
         void calcSurfaceArea(Cluster& cluster);
         
+        void createSortedIndexBuffer(VulkanExampleBase& link);
+        
+        void initUniqueVertexBuffer();
+    	
+    	vks::Buffer sortedIndices;
+    	std::vector<vkglTF::Vertex> uniqueVertexBuffer;
+
         // mesh lod生成
         std::vector<ClusterGroup> clusterGroups;
         

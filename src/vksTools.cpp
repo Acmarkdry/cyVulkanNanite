@@ -3,6 +3,7 @@
 #include "VulkanDescriptorManager.h"
 #include "vulkanexamplebase.h"
 #include "../examples/pbrtexture/pbrTexture.h"
+#include "NaniteMesh/NaniteLodMesh.h"
 
 namespace vks
 {
@@ -87,7 +88,17 @@ namespace vks
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),
 		};
 		descMgr->addSetLayout(DescriptorType::depthCopy, setLayoutBindings, 1);
-
+		
+		// culling
+		setLayoutBindings = {
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+		};
+		descMgr->addSetLayout(DescriptorType::culling, setLayoutBindings, 1);
 
 		descMgr->createLayoutsAndSets(pbrTexture.GetDevice());
 		auto uniformBuffers = pbrTexture.uniformBuffers;
@@ -132,6 +143,24 @@ namespace vks
 
 		descMgr->writeToSet(DescriptorType::depthCopy, 0, 0, &depthStencilImage);
 		descMgr->writeToSet(DescriptorType::depthCopy, 0, 1, &outputImage);
+		
+		// culling
+		pbrTexture.clustersInfoBuffer.setupDescriptor();
+		pbrTexture.culledIndicesBuffer.setupDescriptor();
+		pbrTexture.drawIndexedIndirectBuffer.setupDescriptor();
+		pbrTexture.cullingUniformBuffer.setupDescriptor();
+		
+		VkDescriptorBufferInfo inputIndicesInfo = {};
+		inputIndicesInfo.buffer = pbrTexture.naniteInstance.indices.buffer;
+		inputIndicesInfo.range = VK_WHOLE_SIZE;
+		
+		descMgr->writeToSet(DescriptorType::culling, 0, 0, &pbrTexture.clustersInfoBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 1, &inputIndicesInfo);
+		descMgr->writeToSet(DescriptorType::culling, 0, 2, &pbrTexture.culledIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 3, &pbrTexture.drawIndexedIndirectBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 4, &pbrTexture.cullingUniformBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 5, &pbrTexture.textures.hizBuffer.descriptor);
+		
 	}
 
 	VkImageSubresourceRange vksTools::genDepthSubresourceRange()

@@ -5,6 +5,7 @@
 #include "Cluster.h"
 #include "ClusterGroup.h"
 #include "../utils.h"
+#include "../vksTools.h"
 
 namespace Nanite
 {
@@ -228,6 +229,30 @@ namespace Nanite
 		}
 	}
 
+	void NaniteLodMesh::createSortedIndexBuffer(VulkanExampleBase& link)
+	{
+		size_t indexBufferSize = triangleVertexIndicesSortedByClusterIdx.size()*sizeof(uint32_t);
+		sortedIndices.size = static_cast<uint32_t>(triangleVertexIndicesSortedByClusterIdx.size());
+		assert(indexBufferSize > 0);
+		
+		vks::vksTools::createStagingBuffer(link, 0, indexBufferSize, 
+			triangleVertexIndicesSortedByClusterIdx.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT| VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, sortedIndices);
+	}
+
+	void NaniteLodMesh::initUniqueVertexBuffer()
+	{
+		for (const auto&vertex: mesh.vertices())
+		{
+			vkglTF::Vertex v;
+			v.pos = glm::vec3(mesh.point(vertex)[0], mesh.point(vertex)[1], mesh.point(vertex)[2]);
+			v.normal = glm::vec3(mesh.normal(vertex)[0], mesh.normal(vertex)[1], mesh.normal(vertex)[2]);
+			v.uv = glm::vec2(mesh.texcoord2D(vertex)[0], mesh.texcoord2D(vertex)[1]);
+			v.joint0 = glm::vec4(0.0f);
+			v.weight0 = glm::vec4(0.0f);
+			uniqueVertexBuffer.emplace_back(v);
+		}
+	}
+
 	void NaniteLodMesh::generateClusterGroup()
 	{
 		MetisGraph clusterMetisGraph = MetisGraph::GraphToMetisGraph(clusterGraph);
@@ -351,6 +376,10 @@ namespace Nanite
 		center /= cluster.childClusterIndices.size();
 		cluster.boundingSphereCenter = center;
 		cluster.boundingSphereRadius = max_radius;
+	}
+
+	void NaniteLodMesh::createBVH()
+	{
 	}
 
 	void NaniteLodMesh::assignTriangleClusterGroup(NaniteLodMesh& lastLod)

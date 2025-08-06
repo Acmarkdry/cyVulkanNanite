@@ -2,67 +2,118 @@
 
 #include "NaniteLodMesh.h"
 #include "NaniteMesh.h"
+#include "../vksTools.h"
+#include "../utils.h"
 
 namespace Nanite
 {
+	void NaniteInstance::createBuffersForNaniteLod(VulkanExampleBase &link)
+	{
+        std::vector<vkglTF::Vertex> vertexBuffer;
+        std::vector<uint32_t> indexBuffer;
+        size_t totalNumVertices = 0;
+        size_t totalNumIndices = 0;
+        for (int i = 0; i < referenceMesh->meshes.size(); i++)
+        {
+            assert(referenceMesh->meshes[i].uniqueVertexBuffer.size() > 0);
+            totalNumVertices += referenceMesh->meshes[i].uniqueVertexBuffer.size();
+            assert(referenceMesh->meshes[i].triangleVertexIndicesSortedByClusterIdx.size() > 0);
+            totalNumIndices += referenceMesh->meshes[i].triangleVertexIndicesSortedByClusterIdx.size();
+        }
+        vertexBuffer.reserve(totalNumVertices);
+        indexBuffer.reserve(totalNumIndices);
+        size_t currVertSize = 0;
+        for (int i = 0; i < referenceMesh->meshes.size(); i++)
+        {
+            for (auto& vert : referenceMesh->meshes[i].uniqueVertexBuffer)
+            {
+                vertexBuffer.emplace_back(vert);
+            }
+            for (auto& index : referenceMesh->meshes[i].triangleVertexIndicesSortedByClusterIdx)
+            {
+                indexBuffer.emplace_back(index + currVertSize);
+            }
+            currVertSize += referenceMesh->meshes[i].uniqueVertexBuffer.size();
+        }
+
+        size_t vertexBufferSize = vertexBuffer.size() * sizeof(vkglTF::Vertex);
+        vertices.size = static_cast<uint32_t>(vertexBuffer.size());
+		
+		vks::vksTools::createStagingBuffer(link, 0, vertexBufferSize, vertexBuffer.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
+		
+        size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
+        indices.size = static_cast<uint32_t>(indexBuffer.size());
+		vks::vksTools::createStagingBuffer(link, 0, indexBufferSize, indexBuffer.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  indices);
+	}
+
 	void NaniteInstance::buildClusterInfo()
 	{
-		clusterInfos.resize(referenceMesh->clusterNum);
-		auto& mesh = referenceMesh->mesh;
-		
-		// 构建cluster的包围盒
-		for (NaniteTriMesh::FaceIter faceIt = mesh.faces_begin(); faceIt != mesh.faces_end(); ++faceIt)
-		{
-			NaniteTriMesh::FaceHandle faceHandle = *faceIt;
-			auto clusterIdx = referenceMesh->triangleClusterIndex[faceHandle.idx()];
-			auto &clusterInstance = clusterInfos[clusterIdx];
-			
-			glm::vec3 pMinWorld, pMaxWorld, p0, p1, p2;
-			NaniteTriMesh::FaceVertexIter faceVerter = mesh.fv_iter(faceHandle);
-			
-			auto point0 = mesh.point(*faceVerter);
-			++faceVerter;
-			auto point1 = mesh.point(*faceVerter);
-			++faceVerter;
-			auto point2 = mesh.point(*faceVerter);
-			++faceVerter;
-			
-			auto convertVec3fToGlm = [](const OpenMesh::Vec3f& input, glm::vec3 &output) {
-				output[0] = input[0];
-				output[1] = input[1];
-				output[2] = input[2];
-			};
-			
-			convertVec3fToGlm(point0, p0);
-			convertVec3fToGlm(point1, p1);
-			convertVec3fToGlm(point2, p2);
-			
-			p0 = glm::vec3(transform*glm::vec4(p0, 1.0));
-			p1 = glm::vec3(transform*glm::vec4(p1, 1.0));
-			p2 = glm::vec3(transform*glm::vec4(p2, 1.0));
-			
-			pMinWorld = glm::min(p0, glm::min(p1, p2));
-			pMaxWorld = glm::max(p0, glm::max(p1, p2));
-			
-			clusterInstance.mergeAABB(pMinWorld, pMaxWorld);
-		}
-		
-		// 计算cluster的索引范围
-		int32_t currClusterIdx = -1;
-		for (size_t clusterIdx = 0; clusterIdx < referenceMesh->triangleIndicesSortedByClusterIdx.size(); ++clusterIdx)
-		{	
-			// cluster->triangleIdx->cluster
-			uint32_t currTriangleIndex = referenceMesh->triangleIndicesSortedByClusterIdx[clusterIdx];
-			if (referenceMesh->triangleClusterIndex[currTriangleIndex] != currClusterIdx)
-			{
-				if (currClusterIdx != -1)
-					clusterInfos[currClusterIdx].triangleIndicesEnd = clusterIdx;
-				currClusterIdx = referenceMesh->triangleClusterIndex[currTriangleIndex];
-				clusterInfos[currClusterIdx].triangleIndicesEnd = clusterIdx;
-			}
-		}
-		
-		clusterInfos[currClusterIdx].triangleIndicesEnd = referenceMesh->triangleIndicesSortedByClusterIdx.size();
-	
+        // Init Clusters
+        size_t totalClusterNum = 0;
+        for (int i = 0; i < referenceMesh->meshes.size(); i++)
+        {
+            totalClusterNum += referenceMesh->meshes[i].clusterNum;
+        }
+        clusterInfo.resize(totalClusterNum);
+        size_t currClusterNum = 0, currTriangleNum = 0;
+        for (int i = 0; i < referenceMesh->meshes.size(); i++)
+        {
+            auto& mesh = referenceMesh->meshes[i].mesh;
+            for (NaniteTriMesh::FaceIter face_it = mesh.faces_begin(); face_it != mesh.faces_end(); ++face_it) {
+                NaniteTriMesh::FaceHandle fh = *face_it;
+                auto clusterIdx = referenceMesh->meshes[i].triangleClusterIndex[fh.idx()] + currClusterNum;
+                auto& clusterI = clusterInfo[clusterIdx];
+
+                glm::vec3 pMinWorld, pMaxWorld;
+                glm::vec3 p0, p1, p2;
+                NaniteTriMesh::FaceVertexIter fv_it = mesh.fv_iter(fh);
+
+                // Get the positions of the three vertices
+                auto point0 = mesh.point(*fv_it);
+                ++fv_it;
+                auto point1 = mesh.point(*fv_it);
+                ++fv_it;
+                auto point2 = mesh.point(*fv_it);
+
+                p0[0] = point0[0];
+                p0[1] = point0[1];
+                p0[2] = point0[2];
+
+                p1[0] = point1[0];
+                p1[1] = point1[1];
+                p1[2] = point1[2];
+
+                p2[0] = point2[0];
+                p2[1] = point2[1];
+                p2[2] = point2[2];
+
+                p0 = glm::vec3(rootTransform * glm::vec4(p0, 1.0f));
+                p1 = glm::vec3(rootTransform * glm::vec4(p1, 1.0f));
+                p2 = glm::vec3(rootTransform * glm::vec4(p2, 1.0f));
+
+                getTriangleAABB(p0, p1, p2, pMinWorld, pMaxWorld);
+
+                clusterI.mergeAABB(pMinWorld, pMaxWorld);
+            }
+
+            uint32_t currClusterIdx = -1;
+            for (size_t j = 0; j < referenceMesh->meshes[i].triangleIndicesSortedByClusterIdx.size(); j++)
+            {
+                auto currTriangleIndex = referenceMesh->meshes[i].triangleIndicesSortedByClusterIdx[j];
+                if (referenceMesh->meshes[i].triangleClusterIndex[currTriangleIndex] != currClusterIdx)
+                {
+                    if (currClusterIdx != -1) {
+                        //std::cout << "Cluster " << currClusterIdx << " end at " << j << std::endl;
+                        clusterInfo[currClusterIdx + currClusterNum].triangleIndicesEnd = j + currTriangleNum;
+                    }
+                    currClusterIdx = referenceMesh->meshes[i].triangleClusterIndex[currTriangleIndex];
+                    clusterInfo[currClusterIdx + currClusterNum].triangleIndicesStart = j + currTriangleNum;
+                    //std::cout << "Cluster " << currClusterIdx << " start at " << j << std::endl;
+                }
+            }
+            clusterInfo[currClusterIdx + currClusterNum].triangleIndicesEnd = referenceMesh->meshes[i].triangleIndicesSortedByClusterIdx.size() + currTriangleNum;
+            currClusterNum += referenceMesh->meshes[i].clusterNum;
+            currTriangleNum += referenceMesh->meshes[i].triangleClusterIndex.size();
+        }
 	}
 }

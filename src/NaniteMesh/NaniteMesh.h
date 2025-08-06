@@ -50,8 +50,6 @@ namespace Nanite
         void glTFMeshToOpenMesh(NaniteTriMesh& NaniteTriMesh, const tinygltf::Mesh& mesh); // TODO
 
         /************ Flatten BVH *************/
-        std::shared_ptr<NaniteBVHNode> virtualBVHRootNode;
-        std::vector<NaniteBVHNodeInfo> flattenedBVHNodeInfos;
         void flattenBVH();
 
         /************ Build Info *************/

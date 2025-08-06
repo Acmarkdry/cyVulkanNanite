@@ -11,6 +11,9 @@
 #include "pbrTexture.h"
 #include "VulkanDescriptorManager.h"
 #include "../../src/vksTools.h"
+#include "../../src/NaniteMesh/NaniteMesh.h"
+#include "../../src/NaniteMesh/NaniteInstance.h"
+#include "../../src/NaniteMesh/NaniteLodMesh.h"
 
 
 PBRTexture::PBRTexture():VulkanExampleBase(true)
@@ -62,6 +65,16 @@ void PBRTexture::loadAssets()
 	constexpr uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 	models.skybox.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	models.object.loadFromFile(getAssetPath() + "models/cerberus/cerberus.gltf", vulkanDevice, queue, glTFLoadingFlags);
+	
+	naniteMesh.setModelPath((getAssetPath() + "models/cerberus/").c_str());
+	naniteMesh.loadvkglTFModel(models.object);
+	naniteMesh.initNaniteInfo(getAssetPath() + "models/cerberus/cerberus.gltf", false);
+	for (int i = 0; i < naniteMesh.meshes.size(); ++i)
+	{
+		naniteMesh.meshes[i].initUniqueVertexBuffer();
+	}
+	createNaniteScene();
+	
 	textures.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/gcanyon_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
 	textures.albedoMap.loadFromFile(getAssetPath() + "models/cerberus/albedo.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
 	textures.normalMap.loadFromFile(getAssetPath() + "models/cerberus/normal.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
@@ -232,24 +245,16 @@ void PBRTexture::updateParams()
 
 void PBRTexture::prepare()
 {
-	/*
-	 * 原本的流程
-	loadAssets();
-	generateBRDFLUT();
-	generateIrradianceCube();
-	generatePrefilteredCube();
-	prepareUniformBuffers();
-	setupDescriptors();
-	preparePipelines();
-	 */
-	 
 	initLogSystem();
 	VulkanExampleBase::prepare();
 	loadAssets();
 	generateBRDFLUT();
 	generateIrradianceCube();
 	generatePrefilteredCube();
+	
+	createCullingBuffers();
 	createHizBuffer();
+	
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
@@ -594,6 +599,38 @@ void PBRTexture::setupDepthStencil()
 	vkDeviceWaitIdle(device);
 }
 
+void PBRTexture::createCullingBuffers()
+{
+	// 创建剔除用的buffer
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, models.object.indices.count*sizeof(uint32_t), &culledIndicesBuffer.buffer, &culledIndicesBuffer.memory, nullptr))
+	
+	for (auto& clusterInfo : naniteInstance.clusterInfo)
+	{
+		clusterInfos.emplace_back(clusterInfo);
+	}
+	
+	vks::vksTools::createStagingBuffer(*this, 0, clusterInfos.size()*sizeof(Nanite::ClusterInfo), clusterInfos.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT| VK_BUFFER_USAGE_INDEX_BUFFER_BIT, clustersInfoBuffer);
+	
+	// 剔除用的uniform buffer
+	uboCullingMatrices.model = glm::mat4(1.0f);
+	uboCullingMatrices.lastView = camera.matrices.view;
+	uboCullingMatrices.lastProj = camera.matrices.perspective;
+	
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sizeof(uboCullingMatrices), &cullingUniformBuffer.buffer, &cullingUniformBuffer.memory, &uboCullingMatrices));
+	cullingUniformBuffer.device = device;
+	VK_CHECK_RESULT(cullingUniformBuffer.map());
+	
+	drawIndexedIndirect.firstIndex = 0;
+	drawIndexedIndirect.firstInstance = 0;
+	drawIndexedIndirect.indexCount = models.object.indexBuffer.size();
+	drawIndexedIndirect.instanceCount = 1;
+	drawIndexedIndirect.vertexOffset = 0;
+	
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sizeof(drawIndexedIndirect), &drawIndexedIndirectBuffer.buffer, &drawIndexedIndirectBuffer.memory, &drawIndexedIndirect));
+	drawIndexedIndirectBuffer.device = device;
+	VK_CHECK_RESULT(drawIndexedIndirectBuffer.map());
+}
+
 void PBRTexture::initLogSystem()
 {
 	auto& Logger = Log::Logger::Instance();
@@ -602,5 +639,13 @@ void PBRTexture::initLogSystem()
 	Logger.SetLogFile("cyVulkanNanite.log");
 	
 	// 如何使用log系统
+	
+}
+
+void PBRTexture::createNaniteScene()
+{
+	naniteInstance = Nanite::NaniteInstance(&naniteMesh, modelPos);
+	naniteInstance.createBuffersForNaniteLod(*this);
+	naniteInstance.buildClusterInfo();
 	
 }
