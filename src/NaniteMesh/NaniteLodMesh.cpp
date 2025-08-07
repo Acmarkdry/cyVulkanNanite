@@ -6,6 +6,7 @@
 #include "ClusterGroup.h"
 #include "../utils.h"
 #include "../vksTools.h"
+#include "metis.h"
 
 namespace Nanite
 {
