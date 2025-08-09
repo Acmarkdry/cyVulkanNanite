@@ -176,6 +176,24 @@ void PBRTexture::preparePipelines()
 		pipelineCreateInfo.stage = computeShaderStage;
 		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &depthCopyPipeline.pipeline ));
 	}
+
+	// culling
+	if(false){
+		VkPipelineShaderStageCreateInfo computeShaderStage = loadShader(getShadersPath() + "pbrtexture/culling.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+		VkPushConstantRange pushConstant = {};
+		pushConstant.size = sizeof(cullingPushConstants);
+		pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::culling), 1);
+		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstant;
+		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &cullingPipeline.pipelineLayout))
+
+		VkComputePipelineCreateInfo pipelineCreateInfo = {};
+		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineCreateInfo.layout = cullingPipeline.pipelineLayout;
+		pipelineCreateInfo.stage = computeShaderStage;
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &cullingPipeline.pipeline))
+	}
 }
 
 // Generate a BRDF integration map used as a look-up-table (stores roughness / NdotV)
@@ -368,40 +386,42 @@ void PBRTexture::buildCommandBuffers()
 			vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,nullptr, 1, &imageBarrier);
 		}
 		
-		VkImageMemoryBarrier imageMemBarrier = vks::initializers::imageMemoryBarrier();
-		imageMemBarrier.image = textures.hizBuffer.image;
-		imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageMemBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-		imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		imageMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageMemBarrier.subresourceRange.baseMipLevel = 0;
-		imageMemBarrier.subresourceRange.levelCount = textures.hizBuffer.mipLevels;
-		imageMemBarrier.subresourceRange.baseArrayLayer = 0;
-		imageMemBarrier.subresourceRange.layerCount = 1;
-		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imageMemBarrier);
-		// hiz buffer
-		
-		// VK_SUBPASS_CONTENTS_INLINE 直接进入内联模式，不整花里胡哨
-		vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		vkCmdSetViewport(drawCmdBuffers[i], 0,1, &viewport);
-		vkCmdSetScissor(drawCmdBuffers[i], 0,1, &scissor);
-		vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, debugQuadPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::debugQuad, 0), 0, nullptr);
-		vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, debugQuadPipeline.pipeline);
-		vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-		vkCmdEndRenderPass(drawCmdBuffers[i]);
-		
-		imageMemBarrier.image = textures.hizBuffer.image;
-		imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageMemBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-		imageMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageMemBarrier.subresourceRange.baseMipLevel = 0;
-		imageMemBarrier.subresourceRange.levelCount = textures.hizBuffer.mipLevels;
-		imageMemBarrier.subresourceRange.baseArrayLayer = 0;
-		imageMemBarrier.subresourceRange.layerCount = 1;
-		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imageMemBarrier);
+		if (true){ // depth copy的代码绘制
+			VkImageMemoryBarrier imageMemBarrier = vks::initializers::imageMemoryBarrier();
+			imageMemBarrier.image = textures.hizBuffer.image;
+			imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageMemBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			imageMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			imageMemBarrier.subresourceRange.baseMipLevel = 0;
+			imageMemBarrier.subresourceRange.levelCount = textures.hizBuffer.mipLevels;
+			imageMemBarrier.subresourceRange.baseArrayLayer = 0;
+			imageMemBarrier.subresourceRange.layerCount = 1;
+			vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imageMemBarrier);
+			// hiz buffer
+			
+			// VK_SUBPASS_CONTENTS_INLINE 直接进入内联模式，不整花里胡哨
+			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdSetViewport(drawCmdBuffers[i], 0,1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0,1, &scissor);
+			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, debugQuadPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::debugQuad, 0), 0, nullptr);
+			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, debugQuadPipeline.pipeline);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+			vkCmdEndRenderPass(drawCmdBuffers[i]);
+			
+			imageMemBarrier.image = textures.hizBuffer.image;
+			imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			imageMemBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			imageMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			imageMemBarrier.subresourceRange.baseMipLevel = 0;
+			imageMemBarrier.subresourceRange.levelCount = textures.hizBuffer.mipLevels;
+			imageMemBarrier.subresourceRange.baseArrayLayer = 0;
+			imageMemBarrier.subresourceRange.layerCount = 1;
+			vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imageMemBarrier);
+		}
 
 		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 	}
@@ -648,5 +668,4 @@ void PBRTexture::createNaniteScene()
 	naniteInstance = Nanite::NaniteInstance(&naniteMesh, model0);
 	naniteInstance.createBuffersForNaniteLod(*this);
 	naniteInstance.buildClusterInfo();
-	
 }
