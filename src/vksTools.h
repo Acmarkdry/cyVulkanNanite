@@ -12,7 +12,7 @@ namespace vks
 		public:
 
 		void static createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty, VkDeviceSize srcBufferSize,  void* srcBufferData, 
-				VkBufferUsageFlags targetMemoryProperty, Buffer &targetStaingBuffer);
+				VkBufferUsageFlags targetMemoryProperty, Buffer &targetStaingBuffer, bool cmdRestart = true);
 		
 		void static setPbrDescriptor(PBRTexture &pbrTexture);
 		

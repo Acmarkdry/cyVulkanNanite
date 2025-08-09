@@ -644,7 +644,8 @@ void PBRTexture::initLogSystem()
 
 void PBRTexture::createNaniteScene()
 {
-	naniteInstance = Nanite::NaniteInstance(&naniteMesh, modelPos);
+	glm::mat4 model0 = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	naniteInstance = Nanite::NaniteInstance(&naniteMesh, model0);
 	naniteInstance.createBuffersForNaniteLod(*this);
 	naniteInstance.buildClusterInfo();
 	
