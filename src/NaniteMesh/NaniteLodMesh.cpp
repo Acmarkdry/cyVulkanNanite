@@ -273,7 +273,7 @@ namespace Nanite
 				clusterGroups[0].clusterIndices.push_back(i);
 			}
 			// mesh property
-			for (auto &halfEdge: mesh.halfedges())
+			for (auto& halfEdge : mesh.halfedges())
 			{
 				if (mesh.is_boundary(halfEdge)) continue;
 				mesh.property(clusterGroupIndexPropHandle, halfEdge) = 1;
@@ -312,30 +312,32 @@ namespace Nanite
 		std::cout << std::count(clusterGroupIndex.begin(), clusterGroupIndex.end(), 0) << std::endl;
 
 		// cluster group边界
-		isEdgeVertices.resize(mesh.n_faces()*3, false);
+		isEdgeVertices.resize(mesh.n_faces() * 3, false);
 		std::vector<std::unordered_set<NaniteTriMesh::FaceHandle>> clusterGroupFaceHandles;
 		clusterGroupFaceHandles.resize(clusterGroupNum);
 
-		for (const NaniteTriMesh::EdgeHandle& edge: mesh.edges())
+		for (const NaniteTriMesh::EdgeHandle& edge : mesh.edges())
 		{
 			NaniteTriMesh::HalfedgeHandle heh = mesh.halfedge_handle(edge, 0);
 			NaniteTriMesh::FaceHandle fh = mesh.face_handle(heh);
 			NaniteTriMesh::FaceHandle fh2 = mesh.opposite_face_handle(heh);
-			if (mesh.is_boundary(mesh.opposite_halfedge_handle(heh)) && fh.idx() >= 0) {
+			if (mesh.is_boundary(mesh.opposite_halfedge_handle(heh)) && fh.idx() >= 0)
+			{
 				auto clusterIdx1 = triangleClusterIndex[fh.idx()];
 				auto clusterGroupIdx1 = clusterGroupIndex[clusterIdx1];
 				auto vh1 = mesh.to_vertex_handle(heh);
 				auto vh2 = mesh.from_vertex_handle(heh);
-				mesh.property(clusterGroupIndexPropHandle, heh) = clusterGroupIdx1+1;
+				mesh.property(clusterGroupIndexPropHandle, heh) = clusterGroupIdx1 + 1;
 				clusterGroupFaceHandles[clusterGroupIdx1].insert(fh);
 				continue;
 			}
-			else if (mesh.is_boundary(heh) && fh2.idx() >= 0) {
+			if (mesh.is_boundary(heh) && fh2.idx() >= 0)
+			{
 				auto clusterIdx2 = triangleClusterIndex[fh2.idx()];
 				auto clusterGroupIdx2 = clusterGroupIndex[clusterIdx2];
 				auto vh1 = mesh.to_vertex_handle(mesh.opposite_halfedge_handle(heh));
 				auto vh2 = mesh.from_vertex_handle(mesh.opposite_halfedge_handle(heh));
-				mesh.property(clusterGroupIndexPropHandle, heh) = clusterGroupIdx2+1;
+				mesh.property(clusterGroupIndexPropHandle, heh) = clusterGroupIdx2 + 1;
 				clusterGroupFaceHandles[clusterGroupIdx2].insert(fh2);
 				continue;
 			}
@@ -346,8 +348,8 @@ namespace Nanite
 			auto clusterGroupIdx2 = clusterGroupIndex[clusterIdx2];
 			clusterGroupFaceHandles[clusterGroupIdx1].insert(fh);
 			clusterGroupFaceHandles[clusterGroupIdx2].insert(fh2);
-			mesh.property(clusterGroupIndexPropHandle, heh) = clusterGroupIdx1+1;
-			mesh.property(clusterGroupIndexPropHandle, mesh.opposite_halfedge_handle(heh)) = clusterGroupIdx2+1;
+			mesh.property(clusterGroupIndexPropHandle, heh) = clusterGroupIdx1 + 1;
+			mesh.property(clusterGroupIndexPropHandle, mesh.opposite_halfedge_handle(heh)) = clusterGroupIdx2 + 1;
 		}
 
 		for (size_t clusterIdx = 0; clusterIdx < clusterGroupNum; clusterIdx++)
@@ -523,27 +525,25 @@ namespace Nanite
 		clusterNum = json["clusterNum"].get<int>();
 		triangleClusterIndex = json["triangleClusterIndex"].get<std::vector<idx_t>>();
 		triangleIndicesSortedByClusterIdx = json["triangleIndicesSortedByClusterIdx"].get<std::vector<uint32_t>>();
-		triangleVertexIndicesSortedByClusterIdx = json["triangleVertexIndicesSortedByClusterIdx"].get<std::vector<uint32_t>>();
+		triangleVertexIndicesSortedByClusterIdx = json["triangleVertexIndicesSortedByClusterIdx"].get<std::vector<
+			uint32_t>>();
 	}
-	
-	void NaniteLodMesh::assignTriangleClusterGroup(NaniteLodMesh& lastLod)
+
+	void NaniteLodMesh::assignTriangleClusterGroup(NaniteLodMesh& lastLOD)
 	{
-		// 构建层级关系
-		for (int i = 0; i < lastLod.clusterGroups.size(); i++)
+		for (int i = 0; i < lastLOD.clusterGroups.size(); i++)
 		{
-			oldClusterGroups[i].clusterIndices = lastLod.clusterGroups[i].clusterIndices;
-			oldClusterGroups[i].qemError = lastLod.clusterGroups[i].qemError;
+			oldClusterGroups[i].clusterIndices = lastLOD.clusterGroups[i].clusterIndices;
+			oldClusterGroups[i].qemError = lastLOD.clusterGroups[i].qemError;
 		}
 		for (const auto& heh : mesh.halfedges())
 		{
-			// 分组
-			if (mesh.is_boundary(heh)) continue; // 这个半边是否连接到了一个有效面
+			if (mesh.is_boundary(heh)) continue;
 			auto clusterGroupIdx = mesh.property(clusterGroupIndexPropHandle, heh) - 1;
 			oldClusterGroups[clusterGroupIdx].clusterGroupHalfedges.push_back(heh);
 			oldClusterGroups[clusterGroupIdx].clusterGroupFaces.insert(mesh.face_handle(heh));
 		}
 
-		// 建立cluster的映射
 		triangleClusterIndex.resize(mesh.n_faces(), -1);
 		uint32_t clusterIndexOffset = 0;
 		std::vector<std::unordered_set<uint32_t>> newClusterIndicesSet;
@@ -555,22 +555,23 @@ namespace Nanite
 			oldClusterGroup.mesh = &mesh;
 			oldClusterGroup.buildTriangleIndicesLocalGlobalMapping();
 			oldClusterGroup.buildLocalTriangleGraph();
-			// 进一步划分
 			oldClusterGroup.generateLocalClusters();
 
-			// 开始合并
+
+			// Merging local cluster indices to global cluster indices
 			for (const auto& fh : oldClusterGroup.clusterGroupFaces)
 			{
 				auto localTriangleIdx = oldClusterGroup.triangleIndicesGlobalLocalMap[fh.idx()];
 				NaniteAssert(triangleClusterIndex[fh.idx()] < 0, "Repeat clsutering");
-				uint32_t clusterIdx = clusterIndexOffset + oldClusterGroup.localTriangleClusterIndices[localTriangleIdx];
+				uint32_t clusterIdx = clusterIndexOffset + oldClusterGroup.localTriangleClusterIndices[
+					localTriangleIdx];
 				triangleClusterIndex[fh.idx()] = clusterIdx;
 				newClusterIndicesSet[i].emplace(clusterIdx);
 			}
 			std::vector<uint32_t> newClusterIndices(newClusterIndicesSet[i].begin(), newClusterIndicesSet[i].end());
 			for (auto idx : oldClusterGroup.clusterIndices)
 			{
-				lastLod.clusters[idx].parentClusterIndices = newClusterIndices;
+				lastLOD.clusters[idx].parentClusterIndices = newClusterIndices;
 			}
 			clusterIndexOffset += oldClusterGroup.localClusterNum;
 		}
@@ -605,7 +606,7 @@ namespace Nanite
 			triangleVertexIndicesSortedByClusterIdx[i * 3 + 2] = fv_it->idx();
 		}
 		clusters.resize(clusterNum);
-		
+
 		for (NaniteTriMesh::FaceIter face_it = mesh.faces_begin(); face_it != mesh.faces_end(); ++face_it)
 		{
 			NaniteTriMesh::FaceHandle fh = *face_it;
@@ -613,14 +614,13 @@ namespace Nanite
 			auto& cluster = clusters[clusterIdx];
 			cluster.triangleIndices.push_back(fh.idx());
 		}
-		for (int i = 0; i < lastLod.clusters.size(); i++)
+		for (int i = 0; i < lastLOD.clusters.size(); i++)
 		{
-			for (int idx : lastLod.clusters[i].parentClusterIndices)
+			for (int idx : lastLOD.clusters[i].parentClusterIndices)
 			{
 				clusters[idx].childClusterIndices.emplace_back(i);
 			}
 		}
-		
 		for (size_t i = 0; i < oldClusterGroups.size(); i++)
 		{
 			auto& oldClusterGroup = oldClusterGroups[i];
@@ -630,23 +630,34 @@ namespace Nanite
 				clusters[newClusterIndex].qemError = oldClusterGroup.qemError;
 			}
 		}
-		// 计算quadric error metric
+
 		for (auto& cluster : clusters)
 		{
-			calcBoundingSphereFromChildren(cluster, lastLod);
+			getBoundingSphere(cluster);
 			calcSurfaceArea(cluster);
-			
+
+			cluster.lodLevel = lodLevel;
 			for (int idx : cluster.childClusterIndices)
 			{
-				auto& childCluster = lastLod.clusters[idx];
-				// parent检查，防止出问题
-				NaniteAssert(childCluster.parentNormalizedError < 0 || childCluster.parentNormalizedError - cluster.lodError <= FLT_EPSILON, "error");
-				NaniteAssert(cluster.surfaceArea > DBL_EPSILON, "cluster surfacearea error");
-				
+				const auto& childCluster = lastLOD.clusters[idx];
+				cluster.childMaxLODError = std::max(cluster.childMaxLODError, childCluster.lodError);
+			}
+			cluster.childMaxLODError = std::max(cluster.childMaxLODError, .0);
+			NaniteAssert(cluster.childMaxLODError >= 0, "cluster.childMaxLODError < 0");
+			NaniteAssert(cluster.qemError >= 0, "cluster.qemError < 0");
+			cluster.lodError = cluster.qemError + cluster.childMaxLODError;
+			for (int idx : cluster.childClusterIndices)
+			{
+				auto& childCluster = lastLOD.clusters[idx];
+				// All parent error should be the same
+				NaniteAssert(
+					childCluster.parentNormalizedError < 0 || abs(childCluster.parentNormalizedError - cluster.lodError)
+					< FLT_EPSILON, "Parents have different lod error");
+				NaniteAssert(cluster.surfaceArea > DBL_EPSILON, "cluster.surfaceArea <= 0");
 				childCluster.parentNormalizedError = cluster.lodError;
 				childCluster.parentSurfaceArea = cluster.surfaceArea;
-				cluster.boundingSphereRadius = glm::max(cluster.boundingSphereRadius,
-				                                        childCluster.boundingSphereRadius * 2.0f);
+				cluster.boundingSphereRadius =
+					glm::max(cluster.boundingSphereRadius, childCluster.boundingSphereRadius);
 			}
 		}
 
