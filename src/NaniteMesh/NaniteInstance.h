@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <vector>
 
+#include "Const.h"
 #include "VulkanglTFModel.h"
 #include "glm/glm.hpp"
 
@@ -18,6 +19,7 @@ namespace Nanite
 		NaniteMesh* referenceMesh;
 		glm::mat4 rootTransform;
 		std::vector<ClusterInfo> clusterInfo;
+		std::vector<ErrorInfo> errorInfo;
 		vks::Buffer vertices;
 		vks::Buffer indices;
 		

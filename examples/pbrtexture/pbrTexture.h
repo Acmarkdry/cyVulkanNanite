@@ -21,6 +21,7 @@ public:
 	VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
 	vks::Pipelines pipelines;
 	vks::UBOCullingMatrices uboCullingMatrices;
+	vks::UBOErrorMatrices uboErrorMatrices;
 
 	PBRTexture();
 
@@ -50,6 +51,7 @@ public:
 	void createHizBuffer();
 	void setupDepthStencil() override;
 	void createCullingBuffers();
+	void createErrorProjectionBuffers();
 
 	void initLogSystem();
 
@@ -58,8 +60,6 @@ public:
 	Pipeline hizComputePipeline;
 	Pipeline depthCopyPipeline;
 	Pipeline debugQuadPipeline;
-	Pipeline cullingPipeline;
-	Pipeline errorProjPipeline;
 
 	VkSampler depthStencilSampler;
 
@@ -71,14 +71,27 @@ public:
 	glm::mat4 modelPos = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	
 	std::vector<Nanite::ClusterInfo> clusterInfos;
+	std::vector<Nanite::ErrorInfo> errorInfos;
 
 	vks::Buffer culledIndicesBuffer;
 	vks::Buffer clustersInfoBuffer;
 	vks::Buffer cullingUniformBuffer;
 	vks::Buffer drawIndexedIndirectBuffer;
 	vks::DrawIndexedIndirect drawIndexedIndirect;
+
+	vks::Buffer errorInfoBuffer;
+	vks::Buffer projectedErrorBuffer;
+	vks::Buffer errorUniformBuffer;
+	
 	struct CullingPushConstants
 	{
 		int numClusters;
 	} cullingPushConstants;
+	struct ErrorPushConstants
+	{
+		alignas(4) int numClusters;
+		alignas(8) glm::vec2 screenSize;
+	} errorPushConstants;
+	Pipeline cullingPipeline;
+	Pipeline errorProjPipeline;
 };

@@ -73,7 +73,10 @@ namespace Nanite
 
     class ErrorInfo
     {
-        public:
+    public:
+    	alignas(16) glm::vec4 centerR;
+    	alignas(16) glm::vec4 centerRP;
+    	alignas(8)  glm::vec2 errorWorld;
     };
 
 }
