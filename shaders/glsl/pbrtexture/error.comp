@@ -10,12 +10,12 @@ struct ErrorInfo
     vec2 errorWorld;
 };
 
-layout(set = 0, binding = 0) buffer readonly WorldError
+layout(std430, set = 0, binding = 0) buffer readonly WorldError
 {
     ErrorInfo inputData[];
 };
 
-layout(set = 0, binding = 1) buffer ClusterError
+layout(std430, set = 0, binding = 1) buffer ClusterError
 {
     vec2 outputData[];
 };

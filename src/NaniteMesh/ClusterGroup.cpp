@@ -16,15 +16,13 @@ namespace Nanite
 
 	void ClusterGroup::buildLocalTriangleGraph()
 	{
-		int embeddedSize = (clusterGroupFaces.size() + ClusterTargetSize - 1) / ClusterTargetSize * ClusterTargetSize;
+		int embeddedSize = (clusterGroupFaces.size() + targetClusterSize - 1) / targetClusterSize * targetClusterSize;
 		localTriangleGraph.resize(embeddedSize);
 		for (const auto& heh : clusterGroupHalfedges)
 		{
 			NaniteTriMesh::FaceHandle fh = mesh->face_handle(heh);
 			NaniteTriMesh::FaceHandle fh2 = mesh->opposite_face_handle(heh);
-			
 			if (fh.idx() < 0 || fh2.idx() < 0) continue;
-
 			auto clusterGroupIdx1 = mesh->property(clusterGroupIndexPropHandle, heh) - 1;
 			auto clusterGroupIdx2 = mesh->property(clusterGroupIndexPropHandle, mesh->opposite_halfedge_handle(heh)) - 1;
 			if (clusterGroupIdx1 == clusterGroupIdx2) // 反边
@@ -43,8 +41,8 @@ namespace Nanite
 
 		localTriangleClusterIndices.resize(triangleMetisGraph.nvtxs);
 		idx_t ncon = 1;
-		
-		int clusterSize = std::min(ClusterTargetSize, triangleMetisGraph.nvtxs);
+
+		int clusterSize = std::min(targetClusterSize, triangleMetisGraph.nvtxs);
 		localClusterNum = triangleMetisGraph.nvtxs / clusterSize;
 		if (localClusterNum <= 1)
 		{
@@ -69,12 +67,6 @@ namespace Nanite
 		auto res = METIS_PartGraphKway(&triangleMetisGraph.nvtxs, &ncon, triangleMetisGraph.xadj.data(), triangleMetisGraph.adjncy.data(), nullptr, nullptr, triangleMetisGraph.adjwgt.data(), &localClusterNum, tpwgts, nullptr, options, &objVal, localTriangleClusterIndices.data());
 		free(tpwgts);
 		NaniteAssert(res, "METIS_PartGraphKway failed");
-	}
-
-	void ClusterGroup::mergeAABB(const glm::vec3& pMinOther, const glm::vec3& pMaxOther)
-	{
-		pMin = glm::min(pMin, pMinOther);
-		pMax = glm::max(pMax, pMaxOther);
 	}
 	
 }

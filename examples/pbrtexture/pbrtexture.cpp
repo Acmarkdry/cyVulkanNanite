@@ -69,12 +69,14 @@ void PBRTexture::loadAssets()
 	
 	naniteMesh.setModelPath((getAssetPath() + "models/bunny/").c_str());
 	naniteMesh.loadvkglTFModel(models.object);
-	// naniteMesh.initNaniteInfo(getAssetPath() + "models/cerberus/cerberus.gltf", true);
-	naniteMesh.initNaniteInfo(getAssetPath() + "models/bunny.gltf", false);
+	naniteMesh.initNaniteInfo(getAssetPath() + "models/bunny.gltf", true);
 	for (int i = 0; i < naniteMesh.meshes.size(); ++i)
 	{
 		naniteMesh.meshes[i].initUniqueVertexBuffer();
+		naniteMesh.meshes[i].initVertexBuffer();
+		naniteMesh.meshes[i].createVertexBuffer(*this);
 	}
+	
 	createNaniteScene();
 	
 	textures.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/gcanyon_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
@@ -461,7 +463,7 @@ void PBRTexture::buildCommandBuffers()
 		// models.object.draw(drawCmdBuffers[i]);
 
 		// 模型绘制部分的代码
-		vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &naniteInstance.vertices.buffer, offsets);
+		vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &scene.vertices.buffer, offsets);
 		vkCmdBindIndexBuffer(drawCmdBuffers[i], culledIndicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexedIndirect(drawCmdBuffers[i], drawIndexedIndirectBuffer.buffer, 0, 1, 0);
 
@@ -769,7 +771,7 @@ void PBRTexture::createCullingBuffers()
 	// 创建剔除用的buffer
 	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, models.object.indices.count*sizeof(uint32_t), &culledIndicesBuffer.buffer, &culledIndicesBuffer.memory, nullptr))
 	
-	for (auto& clusterInfo : naniteInstance.clusterInfo)
+	for (auto& clusterInfo : scene.clusterInfo)
 	{
 		clusterInfos.emplace_back(clusterInfo);
 	}
@@ -798,9 +800,9 @@ void PBRTexture::createCullingBuffers()
 
 void PBRTexture::createErrorProjectionBuffers()
 {
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, naniteInstance.errorInfo.size()*sizeof(glm::vec2), &projectedErrorBuffer.buffer, &projectedErrorBuffer.memory, nullptr))
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.errorInfo.size()*sizeof(glm::vec2), &projectedErrorBuffer.buffer, &projectedErrorBuffer.memory, nullptr))
 
-	for (auto & errorInfo : naniteInstance.errorInfo)
+	for (auto & errorInfo : scene.errorInfo)
 	{
 		errorInfos.emplace_back(errorInfo);
 	}
@@ -836,9 +838,20 @@ void PBRTexture::initLogSystem()
 
 void PBRTexture::createNaniteScene()
 {
-	glm::mat4 model0 = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	naniteInstance = Nanite::NaniteInstance(&naniteMesh, model0);
-	naniteInstance.createBuffersForNaniteLod(*this);
-	naniteInstance.buildClusterInfo();
+	scene.naniteMeshes.emplace_back(naniteMesh);
+	modelMats.clear();
 	
+	for (int i = 0; i <= 0; i++)
+	{
+		for (int j = 0; j <= 0; j++) 
+		{
+			auto modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(i * 3, 1.2f, j * 3));
+			auto instance = Nanite::NaniteInstance(&naniteMesh, modelMat);
+			modelMats.emplace_back(modelMat);
+			scene.naniteObjects.emplace_back(instance);
+		}
+	}
+	
+	scene.createVertexIndexBuffer(vulkanDevice, queue, *this);
+	scene.createClusterInfos();
 }

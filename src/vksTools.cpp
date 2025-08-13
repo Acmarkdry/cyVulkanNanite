@@ -7,6 +7,78 @@
 
 namespace vks
 {
+	void vksTools::createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty, VkDeviceSize srcBufferSize, void* srcBufferData, VkBufferUsageFlags targetMemoryProperty, vkglTF::Model::Vertices& targetStaingBuffer, bool cmdRestart)
+	{
+		struct StagingBuffer
+		{
+			VkBuffer buffer;
+			VkDeviceMemory memory;
+		} srcStaging;
+		
+		VulkanDevice* vulkanDevice = variableLink.vulkanDevice;
+		VkQueue& queue = variableLink.GetQueue();
+
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | sorceMemoryProperty,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			srcBufferSize,
+			&srcStaging.buffer,
+			&srcStaging.memory,
+			srcBufferData))
+
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | targetMemoryProperty,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			srcBufferSize,
+			&targetStaingBuffer.buffer,
+			&targetStaingBuffer.memory,
+			nullptr))
+
+		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, cmdRestart);
+		VkBufferCopy copyRegion = {};
+
+		copyRegion.size = srcBufferSize;
+		vkCmdCopyBuffer(copyCmd, srcStaging.buffer, targetStaingBuffer.buffer, 1, &copyRegion);
+
+		vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+		vkDestroyBuffer(vulkanDevice->logicalDevice, srcStaging.buffer, nullptr);
+		vkFreeMemory(vulkanDevice->logicalDevice, srcStaging.memory, nullptr);
+	}
+
+	void vksTools::createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty, VkDeviceSize srcBufferSize, void* srcBufferData, VkBufferUsageFlags targetMemoryProperty, vkglTF::Model::Indices& targetStaingBuffer, bool cmdRestart)
+	{
+		struct StagingBuffer
+		{
+			VkBuffer buffer;
+			VkDeviceMemory memory;
+		} srcStaging;
+		
+		VulkanDevice* vulkanDevice = variableLink.vulkanDevice;
+		VkQueue& queue = variableLink.GetQueue();
+
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | sorceMemoryProperty,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			srcBufferSize,
+			&srcStaging.buffer,
+			&srcStaging.memory,
+			srcBufferData))
+
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | targetMemoryProperty,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			srcBufferSize,
+			&targetStaingBuffer.buffer,
+			&targetStaingBuffer.memory,
+			nullptr))
+
+		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, cmdRestart);
+		VkBufferCopy copyRegion = {};
+
+		copyRegion.size = srcBufferSize;
+		vkCmdCopyBuffer(copyCmd, srcStaging.buffer, targetStaingBuffer.buffer, 1, &copyRegion);
+
+		vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+		vkDestroyBuffer(vulkanDevice->logicalDevice, srcStaging.buffer, nullptr);
+		vkFreeMemory(vulkanDevice->logicalDevice, srcStaging.memory, nullptr);
+	}
+
 	void vksTools::createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty,
 	                                   VkDeviceSize srcBufferSize, void* srcBufferData,
 	                                   VkBufferUsageFlags targetMemoryProperty, Buffer& targetStaingBuffer, bool cmdRestart)
@@ -166,7 +238,7 @@ namespace vks
 		pbrTexture.projectedErrorBuffer.setupDescriptor();
 		
 		VkDescriptorBufferInfo inputIndicesInfo = {};
-		inputIndicesInfo.buffer = pbrTexture.naniteInstance.indices.buffer;
+		inputIndicesInfo.buffer = pbrTexture.scene.indices.buffer;
 		inputIndicesInfo.range = VK_WHOLE_SIZE;
 		
 		descMgr->writeToSet(DescriptorType::culling, 0, 0, &pbrTexture.clustersInfoBuffer.descriptor);
