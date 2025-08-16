@@ -19,16 +19,17 @@ Nanite::MetisGraph Nanite::MetisGraph::GraphToMetisGraph(const Graph& graph)
 {
 	MetisGraph metisGraph;
 	metisGraph.nvtxs = graph.adjMap.size();
-	
+
 	for (auto& adjList : graph.adjMap)
 	{
 		metisGraph.xadj.push_back(metisGraph.adjncy.size());
-		for (const auto & toAndCost : adjList) {
+		for (const auto& toAndCost : adjList)
+		{
 			metisGraph.adjncy.push_back(toAndCost.first);
 			metisGraph.adjwgt.push_back(toAndCost.second);
 		}
-	}    
+	}
 	metisGraph.xadj.push_back(metisGraph.adjncy.size());
-	
+
 	return metisGraph;
 }

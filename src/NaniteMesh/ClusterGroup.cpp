@@ -1,72 +1,98 @@
 ﻿#include "ClusterGroup.h"
-
 #include "../utils.h"
+
+#include <algorithm>
 
 namespace Nanite
 {
 	void ClusterGroup::buildTriangleIndicesLocalGlobalMapping()
 	{
-		int localTriangleIndex = 0;
-		for (const auto & clusterGroupFace: clusterGroupFaces)
+		const auto faceCount = clusterGroupFaces.size();
+
+		// 预分配容量，避免多次重新分配
+		triangleIndicesLocalGlobalMap.clear();
+		triangleIndicesLocalGlobalMap.reserve(faceCount);
+		triangleIndicesGlobalLocalMap.clear();
+		triangleIndicesGlobalLocalMap.reserve(faceCount);
+
+		uint32_t localTriangleIndex = 0;
+		for (const auto& face : clusterGroupFaces)
 		{
-			triangleIndicesLocalGlobalMap.push_back(clusterGroupFace.idx());
-			triangleIndicesGlobalLocalMap[clusterGroupFace.idx()] = localTriangleIndex++;
+			const auto globalIdx = static_cast<uint32_t>(face.idx());
+			triangleIndicesLocalGlobalMap.emplace_back(globalIdx);
+			triangleIndicesGlobalLocalMap.emplace(globalIdx, localTriangleIndex++);
 		}
+	}
+
+	idx_t ClusterGroup::calculateEmbeddedSize() const noexcept
+	{
+		const auto faceCount = static_cast<idx_t>(clusterGroupFaces.size());
+		return ((faceCount + TARGET_CLUSTER_SIZE - 1) / TARGET_CLUSTER_SIZE) * TARGET_CLUSTER_SIZE;
 	}
 
 	void ClusterGroup::buildLocalTriangleGraph()
 	{
-		int embeddedSize = (clusterGroupFaces.size() + targetClusterSize - 1) / targetClusterSize * targetClusterSize;
+		const auto embeddedSize = calculateEmbeddedSize();
 		localTriangleGraph.resize(embeddedSize);
+
 		for (const auto& heh : clusterGroupHalfedges)
 		{
-			NaniteTriMesh::FaceHandle fh = mesh->face_handle(heh);
-			NaniteTriMesh::FaceHandle fh2 = mesh->opposite_face_handle(heh);
-			if (fh.idx() < 0 || fh2.idx() < 0) continue;
-			auto clusterGroupIdx1 = mesh->property(clusterGroupIndexPropHandle, heh) - 1;
-			auto clusterGroupIdx2 = mesh->property(clusterGroupIndexPropHandle, mesh->opposite_halfedge_handle(heh)) - 1;
-			if (clusterGroupIdx1 == clusterGroupIdx2) // 反边
-			{
-				auto localTriangleIdx1 = triangleIndicesGlobalLocalMap[fh.idx()];
-				auto localTriangleIdx2 = triangleIndicesGlobalLocalMap[fh2.idx()];
-				localTriangleGraph.addEdge(localTriangleIdx1, localTriangleIdx2, 1);
-				localTriangleGraph.addEdge(localTriangleIdx2, localTriangleIdx1, 1);
-			}
+			const auto fh1 = mesh->face_handle(heh);
+			const auto fh2 = mesh->opposite_face_handle(heh);
+
+			if (!fh1.is_valid() || !fh2.is_valid()) continue;
+
+			const auto oppositeHeh = mesh->opposite_halfedge_handle(heh);
+			const auto groupIdx1 = mesh->property(clusterGroupIndexPropHandle, heh) - 1;
+			const auto groupIdx2 = mesh->property(clusterGroupIndexPropHandle, oppositeHeh) - 1;
+
+			// 只处理同一cluster group内的边
+			if (groupIdx1 != groupIdx2) continue;
+
+			const auto localIdx1 = triangleIndicesGlobalLocalMap.at(fh1.idx());
+			const auto localIdx2 = triangleIndicesGlobalLocalMap.at(fh2.idx());
+
+			// 添加双向边
+			localTriangleGraph.addEdge(localIdx1, localIdx2, 1);
+			localTriangleGraph.addEdge(localIdx2, localIdx1, 1);
 		}
 	}
 
 	void ClusterGroup::generateLocalClusters()
 	{
-		auto triangleMetisGraph = MetisGraph::GraphToMetisGraph(localTriangleGraph);
+		auto metisGraph = MetisGraph::GraphToMetisGraph(localTriangleGraph);
+		const auto vertexCount = metisGraph.nvtxs;
 
-		localTriangleClusterIndices.resize(triangleMetisGraph.nvtxs);
-		idx_t ncon = 1;
+		localTriangleClusterIndices.resize(vertexCount);
 
-		int clusterSize = std::min(targetClusterSize, triangleMetisGraph.nvtxs);
-		localClusterNum = triangleMetisGraph.nvtxs / clusterSize;
+		const auto clusterSize = std::min(TARGET_CLUSTER_SIZE, vertexCount);
+		localClusterNum = vertexCount / clusterSize;
+
+		// 单一聚类特殊处理
 		if (localClusterNum <= 1)
 		{
-			for (int i = 0; i < triangleMetisGraph.nvtxs; ++i)
-			{
-				localTriangleClusterIndices[i] = 0;
-			}
+			std::fill(localTriangleClusterIndices.begin(), localTriangleClusterIndices.end(), 0);
 			return;
 		}
-		
-		real_t* tpwgts = (real_t*)malloc(ncon * localClusterNum * sizeof(real_t));
-		float sum = 0;
-		for (idx_t i = 0; i < localClusterNum; ++i) {
-			tpwgts[i] = static_cast<float>(clusterSize) / triangleMetisGraph.nvtxs; // 
-			sum += tpwgts[i];
-		}
 
-		idx_t objVal;
+		// 使用vector替代malloc，自动内存管理
+		idx_t ncon = 1;
+		std::vector<real_t> tpwgts(ncon * localClusterNum);
+
+		const auto weightPerCluster = static_cast<real_t>(clusterSize) / vertexCount;
+		std::fill(tpwgts.begin(), tpwgts.end(), weightPerCluster);
+
+		// METIS配置
 		idx_t options[METIS_NOPTIONS];
 		METIS_SetDefaultOptions(options);
-		options[METIS_OPTION_SEED] = 42; 
-		auto res = METIS_PartGraphKway(&triangleMetisGraph.nvtxs, &ncon, triangleMetisGraph.xadj.data(), triangleMetisGraph.adjncy.data(), nullptr, nullptr, triangleMetisGraph.adjwgt.data(), &localClusterNum, tpwgts, nullptr, options, &objVal, localTriangleClusterIndices.data());
-		free(tpwgts);
-		NaniteAssert(res, "METIS_PartGraphKway failed");
+		options[METIS_OPTION_SEED] = METIS_RANDOM_SEED;
+
+		idx_t objVal = 0;
+		const auto result = METIS_PartGraphKway(&metisGraph.nvtxs, &ncon, metisGraph.xadj.data(), metisGraph.adjncy.data(), nullptr, // vwgt
+		                                        nullptr, // vsize
+		                                        metisGraph.adjwgt.data(), &localClusterNum, tpwgts.data(), nullptr, // ubvec
+		                                        options, &objVal, localTriangleClusterIndices.data());
+
+		NaniteAssert(result == METIS_OK, "METIS_PartGraphKway failed");
 	}
-	
 }
