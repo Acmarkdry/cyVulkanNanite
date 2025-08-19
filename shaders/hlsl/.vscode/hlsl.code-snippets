@@ -1,0 +1,44 @@
+{
+    "Vulkan Location Attribute": {
+        "prefix": "vkloc",
+        "body": "[[vk::location(${1:0})]]",
+        "description": "Vulkan location attribute"
+    },
+    "Vulkan Binding Attribute": {
+        "prefix": "vkbind",
+        "body": "[[vk::binding(${1:0}, ${2:0})]]",
+        "description": "Vulkan binding(binding, set)"
+    },
+    "Vulkan Push Constant": {
+        "prefix": "vkpush",
+        "body": "[[vk::push_constant]]",
+        "description": "Vulkan push constant"
+    },
+    "Basic Vertex Shader": {
+        "prefix": "vsbase",
+        "body": [
+            "struct VSInput {",
+            "    [[vk::location(0)]] float3 Position : POSITION;",
+            "    [[vk::location(1)]] float2 TexCoord : TEXCOORD0;",
+            "};",
+            "",
+            "struct VSOutput {",
+            "    float4 Position : SV_Position;",
+            "    [[vk::location(0)]] float2 TexCoord : TEXCOORD0;",
+            "};",
+            "",
+            "[[vk::binding(0, 0)]]",
+            "cbuffer UniformBuffer {",
+            "    float4x4 MVP;",
+            "};",
+            "",
+            "VSOutput main(VSInput input) {",
+            "    VSOutput output;",
+            "    output.Position = mul(MVP, float4(input.Position, 1.0));",
+            "    output.TexCoord = input.TexCoord;",
+            "    return output;",
+            "}"
+        ],
+        "description": "Basic Vulkan vertex shader template"
+    }
+}

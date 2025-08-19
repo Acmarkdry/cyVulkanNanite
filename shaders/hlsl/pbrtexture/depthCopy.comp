@@ -1,0 +1,29 @@
+#define work_group_size 8
+
+[[vk::binding(0, 0)]]
+Texture2D inputImage;
+[[vk::binding(0, 0)]]
+SamplerState texSampler;
+
+[[vk::binding(1, 0)]]
+RWTexture2D<float> outputImage;
+
+[numthreads(work_group_size, work_group_size, 1)]
+void main(uint3 dispatchThreadID: SV_DispatchThreadID)
+{
+    uint2 index = dispatchThreadID.xy;
+    uint inputWidth, inputHeight;
+    inputImage.GetDimensions(inputWidth, inputHeight);
+    float2 inputSize = float2(inputWidth, inputHeight);
+
+    uint outputWidth, outputHeight;
+    outputImage.GetDimensions(outputWidth, outputHeight);
+    float2 outputSize = float2(outputWidth, outputHeight);
+
+    if(any(index >= int2(outputSize)))
+        return;
+
+    float2 uv = float2(index)/inputSize;
+    float4 color = inputImage.SampleLevel(texSampler, uv, 0);
+    outputImage[index] = color.r;
+}

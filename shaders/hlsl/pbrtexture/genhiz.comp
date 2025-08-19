@@ -1,0 +1,30 @@
+#define work_group_size 8
+
+[[vk::binding(0, 0)]]
+Texture2D<float> inputImage;
+
+[[vk::binding(1, 0)]]
+RWTexture2D<float> outputImage;
+
+[numthreads(work_group_size, work_group_size, 1)]
+void main(uint3 dispatchThreadID: SV_DispatchThreadID)
+{
+    uint2 coord = dispatchThreadID.xy;
+
+    uint outputWidth, outputHeight;
+    outputImage.GetDimensions(outputWidth, outputHeight);
+    uint2 outputSize = uint2(outputWidth, outputHeight);
+
+    if(any(coord >= outputSize))
+        return;
+
+    int2 inputCoord = int2(coord*2);
+
+    const float d00 = inputImage.Load(int3(inputCoord, 0));
+    const float d01 = inputImage.Load(int3(inputCoord + int2(0, 1), 0));
+    const float d10 = inputImage.Load(int3(inputCoord + int2(1, 0), 0));
+    const float d11 = inputImage.Load(int3(inputCoord + int2(1, 1), 0));
+
+    const float maxDepth = max(d00, max(d01, max(d10, d11)));
+    outputImage[coord] = maxDepth;
+}

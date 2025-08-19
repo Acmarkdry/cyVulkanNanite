@@ -1,0 +1,54 @@
+// sw和hw数据组合
+#define WORKGROUP_SIZE 8
+
+Texture2D<float> hwDepthBuffer:register(t0);
+SamplerState depthSampler:register(s0);
+RWTexture2D<uint> hwVisBuffer:register(u0);
+
+RWTexture2D<uint2> swDepthVisBuffer:register(u1);
+RWTexture2D<float> finalDepthBuffer:register(u2);
+RWTexture2D<uint> finalVisBuffer:register(u3);
+
+
+cbuffer PushConstants:register(b0)
+{
+    int vis_cluster;
+    int3 _pad;
+}
+
+[numthreads(WORKGROUP_SIZE, WORKGROUP_SIZE, 1)]
+void main(uint3 DTid: SV_DISPATCHTHREADID)
+{
+    uint2 screenSize;
+    hwVisBuffer.GetDimensions(screenSize.x, screenSize.y);
+
+    uint2 index = uint2(DTid.xy);
+
+    if(index.x >= screenSize.x || index.y >= screenSize.y) return;
+
+    float2 uv = (float2(index) + 0.5f)/float2(screenSize);
+    float hwDepth = hwDepthBuffer.SampleLevel(depthSampler, uv, 0).x;
+    uint hwVis = hwVisBuffer[index];
+    uint2 swDepthVis = swDepthVisBuffer[index];
+
+    bool swValid = !((swDepthVis.x == 0) && (swDepthVis.y == 0));
+    bool hwValid = (hwVis != 0xffffffff);
+
+    float swDepth = swValid ? (1.0f - swDepthVis.y) : 1.0f;
+    uint swVis = swValid ? swDepthVis.x : 0xfffffff;
+
+    bool swCloster = swDepth < hwDepth;
+    float finalDepth = swCloster? swDepth : hwDepth;
+    uint finalVis;
+
+    if(vis_cluster != 3)
+    {
+        finalVis = swCloster ? swVis : hwVis;
+    }
+    else{
+        finalVis = (swValid || hwValid) ? (swCloster ? 0u : 1u) : 0xffffffff;
+    }
+
+    finalDepthBuffer[index] = finalDepth;
+    finalVisBuffer[index] = finalVis;
+}

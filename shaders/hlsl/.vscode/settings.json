@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "*.frag":"hlsl",
+        "*.vert":"hlsl",
+        "*.comp":"hlsl"
+    },
+    // HLSL 预处理器定义（让扩展识别 Vulkan 宏）
+    "hlsl.preprocessorDefinitions": {
+        "__SPIRV__": "1",
+        "VULKAN": "1",
+        "__spirv__": "1"
+    }
+}
