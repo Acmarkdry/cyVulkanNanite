@@ -1,50 +1,67 @@
-#define WORKGROUP_SIZE 8*8
+#define WORKGROUP_SIZE 64  // 8*8
+
 static const float threshold = 1e-3;
 
-struct Cluster{
+struct Cluster
+{
     float3 pMin;
-    float _pad0; //对齐
+    float _pad0;
     float3 pMax;
-    float _pad1; //对齐
+    float _pad1;
     uint triangleStart;
     uint triangleEnd;
-    uint2 _pad2;
+    uint objectIdx;
+    uint _pad2;
 };
 
-struct DrawIndirectArgs
+// set = 0, binding = 0
+[[vk::binding(0, 0)]]
+StructuredBuffer<Cluster> inputData;
+
+// set = 0, binding = 1
+[[vk::binding(1, 0)]]
+StructuredBuffer<uint> inTriangles;
+
+// set = 0, binding = 2
+[[vk::binding(2, 0)]]
+RWStructuredBuffer<uint> outTriangles;
+
+// set = 0, binding = 3 - Indirect Draw Arguments
+struct DrawIndexedIndirectCommand
 {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
-    uint vertexOffset;
+    int  vertexOffset;
     uint firstInstance;
 };
 
-// binding
-[[vk::binding(0, 0)]]
-StructuredBuffer<Cluster> inputData;
-[[vk::binding(1, 0)]]
-StructuredBuffer<uint> inTriangles;
-[[vk::binding(2, 0)]]
-RWStructuredBuffer<uint> outTriangles;
 [[vk::binding(3, 0)]]
-RWStructuredBuffer<DrawIndirectArgs> numVertices;
-[[vk::binding(6, 0)]]
-StructuredBuffer<float2> errorData;
+RWStructuredBuffer<DrawIndexedIndirectCommand> numVertices;
 
-[[vk::binding(5, 0)]]
-Texture2D<float> lastHZB;
-[[vk::binding(5, 0)]]
-SamplerState hzbSampler;
-
-[[vk::binding(4, 0)]]
-cbuffer UBOMats:register(b0)
+// set = 0, binding = 4
+struct UBOMats
 {
     float4x4 model;
     float4x4 lastView;
     float4x4 lastProj;
 };
 
+[[vk::binding(4, 0)]]
+ConstantBuffer<UBOMats> uboMats;
+
+// set = 0, binding = 5
+[[vk::binding(5, 0)]]
+Texture2D<float> lastHZB;
+
+[[vk::binding(5, 0)]]
+SamplerState lastHZBSampler;  // 注：需要单独 binding 或使用 combined image sampler
+
+// set = 0, binding = 6
+[[vk::binding(6, 0)]]
+StructuredBuffer<float2> errorData;
+
+// Push Constants
 struct PushConstants
 {
     int numClusters;
@@ -58,29 +75,29 @@ void getScreenAABB(Cluster cluster, inout float4 screenXY, inout float minZ)
     float4 pointArray[8];
     float4 pointMVPArray[8];
 
-    float2 minXY = float2(1.0,1.0);
+    float2 minXY = float2(1.0, 1.0);
     float2 maxXY = float2(0.0, 0.0);
 
-    float3 corners[8] = {
-      float3(cluster.pMin.x, cluster.pMin.y, cluster.pMin.z),
-      float3(cluster.pMin.x, cluster.pMin.y, cluster.pMax.z),
-      float3(cluster.pMin.x, cluster.pMax.y, cluster.pMin.z),
-      float3(cluster.pMin.x, cluster.pMax.y, cluster.pMax.z),
-      float3(cluster.pMax.x, cluster.pMin.y, cluster.pMin.z),
-      float3(cluster.pMax.x, cluster.pMin.y, cluster.pMax.z),
-      float3(cluster.pMax.x, cluster.pMax.y, cluster.pMin.z),
-        float3(cluster.pMax.x, cluster.pMax.y, cluster.pMax.z),
-    };
+    // 生成 AABB 的 8 个顶点
+    float3 corners[8];
+    corners[0] = float3(cluster.pMin.x, cluster.pMin.y, cluster.pMin.z);
+    corners[1] = float3(cluster.pMax.x, cluster.pMin.y, cluster.pMin.z);
+    corners[2] = float3(cluster.pMin.x, cluster.pMax.y, cluster.pMin.z);
+    corners[3] = float3(cluster.pMax.x, cluster.pMax.y, cluster.pMin.z);
+    corners[4] = float3(cluster.pMin.x, cluster.pMin.y, cluster.pMax.z);
+    corners[5] = float3(cluster.pMax.x, cluster.pMin.y, cluster.pMax.z);
+    corners[6] = float3(cluster.pMin.x, cluster.pMax.y, cluster.pMax.z);
+    corners[7] = float3(cluster.pMax.x, cluster.pMax.y, cluster.pMax.z);
 
-    [unroll]
-    for(int i = 0; i <8; i++)
+    for (int i = 0; i < 8; ++i)
     {
         pointArray[i] = float4(corners[i], 1.0);
-        pointMVPArray[i] = mul(lastProj, mul(lastView, pointArray[i]));
+        pointMVPArray[i] = mul(uboMats.lastProj, mul(uboMats.lastView, pointArray[i]));
         pointMVPArray[i].xyz /= pointMVPArray[i].w;
-        pointMVPArray[i] = pointMVPArray[i]*0.5 + 0.5;
+        pointMVPArray[i] = pointMVPArray[i] * 0.5 + 0.5;
 
         minZ = min(minZ, pointMVPArray[i].z);
+
         minXY = min(minXY, pointMVPArray[i].xy);
         maxXY = max(maxXY, pointMVPArray[i].xy);
     }
@@ -92,38 +109,45 @@ void getScreenAABB(Cluster cluster, inout float4 screenXY, inout float minZ)
 bool frustumCulling(float3 pos, float4x4 curView, float4x4 curProj)
 {
     float4 hizPos = mul(curProj, mul(curView, float4(pos, 1.0)));
-    if(hizPos.w == 0.0)
+    if (hizPos.w == 0.0)
         return false;
 
     hizPos.xyz /= hizPos.w;
-    return hizPos.x >= -1.1 && hizPos.x <= 1.1 && hizPos.y >= -1.1 && hizPos.y <= 1.1;  
+    return hizPos.x >= -1.1 && hizPos.x <= 1.1 && hizPos.y >= -1.1 && hizPos.y <= 1.1;
 }
 
 [numthreads(WORKGROUP_SIZE, 1, 1)]
-void main(uint3 dispatchThreadID: SV_DispatchThreadID)
+void main(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
-    uint index = dispatchThreadID.x;
-    if(index >= (uint)pushConstants.numClusters)
-        return;
+    uint clusterIndex = dispatchThreadID.x;
     
+    if (clusterIndex >= (uint)pushConstants.numClusters)
+        return;
+
     bool culled = false;
 
-    culled = culled || (errorData[index].y <= threshold || errorData[index].x >= threshold);
+    // 基于误差的 LOD 剔除
+    culled = culled || (errorData[clusterIndex].y <= threshold || errorData[clusterIndex].x > threshold);
 
-    if(culled == false)
+    if (culled == false)
     {
-        uint totalVertices = (inputData[index].triangleEnd - inputData[index].triangleStart)*3;
-
+        Cluster cluster = inputData[clusterIndex];
+        uint totalVertices = (cluster.triangleEnd - cluster.triangleStart) * 3;
+        
+        // 原子操作获取输出索引
         uint nIdx;
-        InterlockedAdd(numVertices[index].instanceCount, totalVertices, nIdx);
+        InterlockedAdd(numVertices[0].indexCount, totalVertices, nIdx);
 
-        for(uint i = 0;i < totalVertices/3; i++)
+        // 复制三角形索引
+        uint numTriangles = totalVertices / 3;
+        for (uint i = 0; i < numTriangles; ++i)
         {
-            uint srcIndex = inputData[index].triangleStart*3 + 3*i;
-            uint outIndex = nIdx + 3*i;
-            outTriangles[outIndex + 0] = inTriangles[srcIndex + 0];
-            outTriangles[outIndex + 1] = inTriangles[srcIndex + 1];
-            outTriangles[outIndex + 2] = inTriangles[srcIndex + 2];
+            uint srcIndex = cluster.triangleStart * 3 + 3 * i;
+            uint dstIndex = nIdx + 3 * i;
+            
+            outTriangles[dstIndex + 0] = inTriangles[srcIndex + 0];
+            outTriangles[dstIndex + 1] = inTriangles[srcIndex + 1];
+            outTriangles[dstIndex + 2] = inTriangles[srcIndex + 2];
         }
     }
 }

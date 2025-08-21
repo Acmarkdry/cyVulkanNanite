@@ -1,30 +1,39 @@
-#define work_group_size 8
 
+
+#define WORKGROUP_SIZE 8
+
+// set = 0, binding = 0, r32f, storage image (readonly in logic)
 [[vk::binding(0, 0)]]
-Texture2D<float> inputImage;
+[[vk::image_format("r32f")]]
+RWTexture2D<float> iImage;  // 使用 RWTexture2D 生成 STORAGE_IMAGE
 
+// set = 0, binding = 1, r32f, storage image
 [[vk::binding(1, 0)]]
-RWTexture2D<float> outputImage;
+[[vk::image_format("r32f")]]
+RWTexture2D<float> oImage;
 
-[numthreads(work_group_size, work_group_size, 1)]
-void main(uint3 dispatchThreadID: SV_DispatchThreadID)
+[numthreads(WORKGROUP_SIZE, WORKGROUP_SIZE, 1)]
+void main(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
-    uint2 coord = dispatchThreadID.xy;
-
+    int2 index = int2(dispatchThreadID.xy);
+    
+    uint inputWidth, inputHeight;
+    iImage.GetDimensions(inputWidth, inputHeight);
+    
     uint outputWidth, outputHeight;
-    outputImage.GetDimensions(outputWidth, outputHeight);
-    uint2 outputSize = uint2(outputWidth, outputHeight);
-
-    if(any(coord >= outputSize))
+    oImage.GetDimensions(outputWidth, outputHeight);
+    
+    if (index.x >= (int)outputWidth || index.y >= (int)outputHeight)
         return;
-
-    int2 inputCoord = int2(coord*2);
-
-    const float d00 = inputImage.Load(int3(inputCoord, 0));
-    const float d01 = inputImage.Load(int3(inputCoord + int2(0, 1), 0));
-    const float d10 = inputImage.Load(int3(inputCoord + int2(1, 0), 0));
-    const float d11 = inputImage.Load(int3(inputCoord + int2(1, 1), 0));
-
-    const float maxDepth = max(d00, max(d01, max(d10, d11)));
-    outputImage[coord] = maxDepth;
+    
+    float depth = 0.0f;
+    int2 inputCoord = index * 2;
+    
+    // RWTexture2D 使用 [] 操作符读取
+    // depth = max(depth, iImage[inputCoord]);
+    // depth = max(depth, iImage[inputCoord + int2(0, 1)]);
+    // depth = max(depth, iImage[inputCoord + int2(1, 0)]);
+    // depth = max(depth, iImage[inputCoord + int2(1, 1)]);
+    
+    oImage[index] = depth;
 }

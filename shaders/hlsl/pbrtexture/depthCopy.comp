@@ -20,7 +20,7 @@ void main(uint3 dispatchThreadID: SV_DispatchThreadID)
     outputImage.GetDimensions(outputWidth, outputHeight);
     float2 outputSize = float2(outputWidth, outputHeight);
 
-    if(any(index >= int2(outputSize)))
+    if(any(index >= uint2(outputSize)))
         return;
 
     float2 uv = float2(index)/inputSize;

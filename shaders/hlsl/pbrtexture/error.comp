@@ -1,15 +1,16 @@
-#define work_group_size 8*8
+#define WORKGROUP_SIZE 64
 
 struct ErrorInfo
 {
     float4 centerRadius;
     float4 centerParentRadius;
-    float4 errorWorld;
-    float2 _pad;
+    float2 errorWorld;
+    float2 _padding; // 对齐到 16 字节
 };
 
 [[vk::binding(0, 0)]]
 StructuredBuffer<ErrorInfo> inputData;
+
 [[vk::binding(1, 0)]]
 RWStructuredBuffer<float2> outputData;
 
@@ -29,6 +30,7 @@ ConstantBuffer<UBOMats> ubo;
 struct PushConstants
 {
     int numClusters;
+    float _pad0;
     float2 screenSize;
 };
 
@@ -40,39 +42,40 @@ float getScreenBoundRadius(float3 center, float radius)
     float4 c = mul(ubo.proj, mul(ubo.view, float4(center, 1.0)));
     c.xy /= c.w;
     c.xy = c.xy * 0.5 + 0.5;
-
-    float4 p0 = mul(ubo.proj, mul(ubo.view, float4(center + ubo.camUp *radius, 1.0)));
+    
+    float4 p0 = mul(ubo.proj, mul(ubo.view, float4(radius * ubo.camUp + center, 1.0)));
     p0.xy /= p0.w;
     p0.xy = p0.xy * 0.5 + 0.5;
-
-    float4 p1 = mul(ubo.proj, mul(ubo.view, float4(center + ubo.camRight *radius, 1.0)));
+    
+    float4 p1 = mul(ubo.proj, mul(ubo.view, float4(radius * ubo.camRight + center, 1.0)));
     p1.xy /= p1.w;
     p1.xy = p1.xy * 0.5 + 0.5;
-
-    float2 v0 = (p0.xy - c.xy)*pcs.screenSize;
-    float2 v1 = (p1.xy - c.xy)*pcs.screenSize;
-
+    
+    float2 v0 = (p0.xy - c.xy) * pcs.screenSize;
+    float2 v1 = (p1.xy - c.xy) * pcs.screenSize;
+    
     return max(dot(v0, v0), dot(v1, v1));
 }
 
-[numthreads(work_group_size, 1, 1)]
-void main(uint3 dispatchThreadID: SV_DispatchThreadID)
+[numthreads(WORKGROUP_SIZE, 1, 1)]
+void main(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
     uint index = dispatchThreadID.x;
-    if(index >= pcs.numClusters)
+    
+    if (index >= (uint)pcs.numClusters)
         return;
-
+    
     ErrorInfo error = inputData[index];
     float3 center;
     float radius;
-
+    
     center = error.centerRadius.xyz;
     radius = error.centerRadius.w;
-    float screenError0 = error.errorWorld.x * getScreenBoundRadius(center, radius) / (radius * radius);
-
+    float errorX = error.errorWorld.x * getScreenBoundRadius(center, radius) / (radius * radius);
+    
     center = error.centerParentRadius.xyz;
     radius = error.centerParentRadius.w;
-    float screenError1 = error.errorWorld.y * getScreenBoundRadius(center, radius) / (radius * radius);
-
-    outputData[index] = float2(screenError0, screenError1);
+    float errorY = error.errorWorld.y * getScreenBoundRadius(center, radius) / (radius * radius);
+    
+    outputData[index] = float2(errorX, errorY);
 }

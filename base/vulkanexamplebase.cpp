@@ -92,10 +92,21 @@ VkResult VulkanExampleBase::createInstance(bool enableValidation)
 			instanceExtensions.push_back(enabledExtension);
 		}
 	}
-
+		
+	// VkValidationFeatureEnableEXT enabledFeatures[] ={
+	// 	VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+	// // VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+	// // VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT  // 顺便开同步验证
+	// };
+	
+	// VkValidationFeaturesEXT validationFeatures{};
+	// validationFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+	// validationFeatures.enabledValidationFeatureCount = 3;
+	// validationFeatures.pEnabledValidationFeatures = enabledFeatures;
+	
 	VkInstanceCreateInfo instanceCreateInfo = {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pNext = NULL;
+	instanceCreateInfo.pNext = nullptr;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)) && defined(VK_KHR_portability_enumeration)
@@ -776,6 +787,7 @@ void VulkanExampleBase::submitFrame()
 	else {
 		VK_CHECK_RESULT(result);
 	}
+	
 	VK_CHECK_RESULT(vkQueueWaitIdle(queue));
 }
 

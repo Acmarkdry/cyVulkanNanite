@@ -305,6 +305,7 @@ void PBRTexture::prepare()
 {
 	initLogSystem();
 	enabledDeviceExtensions.emplace_back(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
+	enabledDeviceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
 	VulkanExampleBase::prepare();
 	loadAssets();
