@@ -47,6 +47,9 @@ public:
 	void createCullingBuffers();
 	void createErrorProjectionBuffers();
 	void createNaniteScene();
+	void createRasterizeBuffer();
+	void createModelMatsBuffer();
+	void createHWRasterizeFrameBuffer();
 
 	void initLogSystem();
 
@@ -112,11 +115,16 @@ public:
 	// Uniform数据
 	vks::UBOCullingMatrices uboCullingMatrices;
 	vks::UBOErrorMatrices uboErrorMatrices;
+	
+	vks::UBOShading uboShading;
 
 	// Push常量
 	struct CullingPushConstants
 	{
 		int numClusters;
+		float threshold;
+		alignas(4) bool useFrustrumOcclusionCulling = true;
+		alignas(4) bool useSoftwareRasterization = true;
 	} cullingPushConstants{};
 
 	struct ErrorPushConstants
@@ -124,6 +132,22 @@ public:
 		alignas(4) int numClusters;
 		alignas(8) glm::vec2 screenSize;
 	} errorPushConstants{};
+	
+	int thresholdInt = 500;
+	double thresholdIntDiv = 1e6;
+	int visClustersLevel = 0;
+	struct RenderingPushConstants
+	{
+		int visClusters = 0;
+	} renderPushConstants;
+	
+	// 光栅化 为了存储rasterize，需要额外进行一个render pass
+	vks::RasterizeBuffer HWRasterizeBuffer, HWRVisBuffer, SWRasterizeBuffer, finalZBuffer, finalVisBuffer;
+	vks::Buffer modelMatsBuffer;
+	VkFramebuffer HWRasterizeFrameBuffer;
+	VkRenderPass hwRasterizeRenderPass;
+	
+	void setupRenderPass() override;
 
 private:
 	// 常量

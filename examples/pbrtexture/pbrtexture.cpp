@@ -226,6 +226,144 @@ void PBRTexture::createComputePipelines()
 	createComputePipeline("error.comp.spv", DescriptorType::errorPorj, errorProjPipeline, &errorPush);
 }
 
+void PBRTexture::setupRenderPass()
+{
+	// VulkanExampleBase::setupRenderPass();
+	
+	std::array<VkAttachmentDescription, 2> attachments = {};
+	// Color attachment
+	attachments[0].format = swapChain.colorFormat;
+	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	// Depth attachment
+	attachments[1].format = depthFormat;
+	attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference colorReference = {};
+	colorReference.attachment = 0;
+	colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depthReference = {};
+	depthReference.attachment = 1;
+	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpassDescription = {};
+	subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpassDescription.colorAttachmentCount = 1;
+	subpassDescription.pColorAttachments = &colorReference;
+	subpassDescription.pDepthStencilAttachment = &depthReference;
+	subpassDescription.inputAttachmentCount = 0;
+	subpassDescription.pInputAttachments = nullptr;
+	subpassDescription.preserveAttachmentCount = 0;
+	subpassDescription.pPreserveAttachments = nullptr;
+	subpassDescription.pResolveAttachments = nullptr;
+
+	// Subpass dependencies for layout transitions
+	std::array<VkSubpassDependency, 2> dependencies;
+
+	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+	dependencies[0].dependencyFlags = 0;
+
+	dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].dstSubpass = 0;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].srcAccessMask = 0;
+	dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	dependencies[1].dependencyFlags = 0;
+
+	VkRenderPassCreateInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+	renderPassInfo.pAttachments = attachments.data();
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpassDescription;
+	renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+	renderPassInfo.pDependencies = dependencies.data();
+
+	VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
+
+	// Color attachment
+	attachments[0].format = VK_FORMAT_R32_UINT;
+	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	// Depth attachment
+	attachments[1].format = VK_FORMAT_D32_SFLOAT;
+	attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	colorReference.attachment = 0;
+	colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	depthReference.attachment = 1;
+	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpassDescription.colorAttachmentCount = 1;
+	subpassDescription.pColorAttachments = &colorReference;
+	subpassDescription.pDepthStencilAttachment = &depthReference;
+	subpassDescription.inputAttachmentCount = 0;
+	subpassDescription.pInputAttachments = nullptr;
+	subpassDescription.preserveAttachmentCount = 0;
+	subpassDescription.pPreserveAttachments = nullptr;
+	subpassDescription.pResolveAttachments = nullptr;
+
+	// Subpass dependencies for layout transitions
+
+	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+	dependencies[0].dependencyFlags = 0;
+
+	dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].dstSubpass = 0;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].srcAccessMask = 0;
+	dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	dependencies[1].dependencyFlags = 0;
+
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+	renderPassInfo.pAttachments = attachments.data();
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpassDescription;
+	renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+	renderPassInfo.pDependencies = dependencies.data();
+
+	VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &hwRasterizeRenderPass));
+
+}
+
 void PBRTexture::preparePipelines()
 {
 	createGraphicsPipelines();
@@ -288,6 +426,21 @@ void PBRTexture::updateUniformBuffers()
 	uboErrorMatrices.camRight = camera.getRight();
 	uboErrorMatrices.camUp = camera.getUp();
 	memcpy(errorUniformBuffer.mapped, &uboErrorMatrices, sizeof(vks::UBOErrorMatrices));
+	
+	// error
+	uboErrorMatrices.view = camera.matrices.view;
+	uboErrorMatrices.proj = camera.matrices.perspective;
+	uboErrorMatrices.camRight = camera.getRight();
+	uboErrorMatrices.camUp = camera.getUp();
+	memcpy(errorUniformBuffer.mapped, &uboErrorMatrices, sizeof(uboErrorMatrices));
+	errorUniformBuffer.flush();
+	
+	uboShading.invView = glm::inverse(camera.matrices.view);
+	uboShading.invProj = glm::inverse(camera.matrices.perspective);
+	uboShading.camPos = camera.position*-1.0f;
+	memcpy(uniformBuffers.shadingMats.mapped, &uboShading, sizeof(vks::UBOShading));
+	uniformBuffers.shadingMats.flush();
+	
 }
 
 void PBRTexture::updateParams()
@@ -306,16 +459,21 @@ void PBRTexture::prepare()
 	initLogSystem();
 	enabledDeviceExtensions.emplace_back(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
 	enabledDeviceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	enabledDeviceExtensions.emplace_back(VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME);
 
 	VulkanExampleBase::prepare();
 	loadAssets();
+	createRasterizeBuffer();
+	
 	generateBRDFLUT();
 	generateIrradianceCube();
 	generatePrefilteredCube();
 
 	createCullingBuffers();
-	createHizBuffer();
 	createErrorProjectionBuffers();
+	createHizBuffer();
+	createModelMatsBuffer();
+	createHWRasterizeFrameBuffer();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
@@ -471,6 +629,10 @@ void PBRTexture::render()
 		drawIndexedIndirectBuffer.flush();
 		vkDeviceWaitIdle(device);
 	}
+	
+	uboCullingMatrices.currView = camera.matrices.view;
+	uboCullingMatrices.currProj = camera.matrices.perspective;
+	memcpy(cullingUniformBuffer.mapped, &uboCullingMatrices, sizeof(vks::UBOCullingMatrices));
 
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
@@ -498,6 +660,7 @@ void PBRTexture::OnUpdateUIOverlay(vks::UIOverlay* overlay)
 {
 	if (overlay->header("Settings"))
 	{
+		bool bNeedRebuildCommandBuffer = false;
 		if (overlay->inputFloat("Exposure", &uniformDataParams.exposure, 0.1f, 2))
 		{
 			updateParams();
@@ -507,6 +670,28 @@ void PBRTexture::OnUpdateUIOverlay(vks::UIOverlay* overlay)
 			updateParams();
 		}
 		if (overlay->checkBox("Skybox", &displaySkybox))
+		{
+			bNeedRebuildCommandBuffer = true;
+		}
+		if (overlay->checkBox("Software Rasterization", &cullingPushConstants.useSoftwareRasterization)) {
+			bNeedRebuildCommandBuffer = true;
+		}
+		if (overlay->checkBox("Frustrum&Occlusion Culling", &cullingPushConstants.useFrustrumOcclusionCulling)) {
+			bNeedRebuildCommandBuffer = true;
+		}
+		if (overlay->sliderInt("Threshold", &thresholdInt, 0, 1000))
+		{
+			bNeedRebuildCommandBuffer = true;
+		}
+		if (overlay->sliderInt("Visualize Clusters", &renderPushConstants.visClusters,0,3)) {
+			bNeedRebuildCommandBuffer = true;
+		}
+		if (overlay->sliderInt("LOD level", &visClustersLevel, 0, naniteMesh.meshes.size() - 1))
+		{
+			bNeedRebuildCommandBuffer = true;
+		}
+		
+		if (bNeedRebuildCommandBuffer)
 		{
 			buildCommandBuffers();
 		}
@@ -746,4 +931,258 @@ void PBRTexture::createNaniteScene()
 
 	scene.createVertexIndexBuffer(*this);
 	scene.createClusterInfos();
+}
+
+
+// 图像资源描述
+struct ImageResourceDesc
+{
+    VkFormat          format;
+    VkImageUsageFlags usage;
+    VkImageAspectFlags aspectMask;
+    VkImageLayout     initialLayout;
+    VkImageLayout     targetLayout;
+    bool              createSampler;
+};
+
+// 创建单个图像资源 (Image + View + Memory + 可选Sampler)
+void createImageResource(
+    vks::VulkanDevice* vulkanDevice,
+    VkDevice device,
+    uint32_t width,
+    uint32_t height,
+    const ImageResourceDesc& desc,
+    vks::RasterizeBuffer& outResource)  // 假设 ImageResource 包含 image, view, mem, sampler
+{
+    // 1. 创建 Image
+    VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
+    imageCI.imageType     = VK_IMAGE_TYPE_2D;
+    imageCI.format        = desc.format;
+    imageCI.extent        = { width, height, 1 };
+    imageCI.mipLevels     = 1;
+    imageCI.arrayLayers   = 1;
+    imageCI.samples       = VK_SAMPLE_COUNT_1_BIT;
+    imageCI.tiling        = VK_IMAGE_TILING_OPTIMAL;
+    imageCI.usage         = desc.usage;
+    imageCI.initialLayout = desc.initialLayout;
+
+    VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &outResource.image));
+
+    // 2. 分配并绑定内存
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(device, outResource.image, &memReqs);
+
+    VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
+    memAlloc.allocationSize  = memReqs.size;
+    memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(
+        memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &outResource.memory));
+    VK_CHECK_RESULT(vkBindImageMemory(device, outResource.image, outResource.memory, 0));
+
+    // 3. 创建 ImageView
+    VkImageViewCreateInfo viewCI = vks::initializers::imageViewCreateInfo();
+    viewCI.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+    viewCI.image                           = outResource.image;
+    viewCI.format                          = desc.format;
+    viewCI.subresourceRange.aspectMask     = desc.aspectMask;
+    viewCI.subresourceRange.baseMipLevel   = 0;
+    viewCI.subresourceRange.levelCount     = 1;
+    viewCI.subresourceRange.baseArrayLayer = 0;
+    viewCI.subresourceRange.layerCount     = 1;
+
+    VK_CHECK_RESULT(vkCreateImageView(device, &viewCI, nullptr, &outResource.view));
+
+    // 4. 可选: 创建 Sampler
+    if (desc.createSampler)
+    {
+        VkSamplerCreateInfo samplerCI = vks::initializers::samplerCreateInfo();
+        samplerCI.magFilter     = VK_FILTER_NEAREST;
+        samplerCI.minFilter     = VK_FILTER_NEAREST;
+        samplerCI.addressModeU  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCI.addressModeV  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCI.addressModeW  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCI.borderColor   = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+
+        VK_CHECK_RESULT(vkCreateSampler(device, &samplerCI, nullptr, &outResource.sampler));
+    }
+    else
+    {
+        outResource.sampler = VK_NULL_HANDLE;
+    }
+}
+
+// 批量转换图像布局 (单个 command buffer)
+void transitionImageLayouts(
+    vks::VulkanDevice* vulkanDevice,
+    VkQueue queue,
+    const std::vector<std::pair<VkImage, VkImageAspectFlags>>& images,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout)
+{
+    VkCommandBuffer cmdBuf = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+    for (const auto& [image, aspectMask] : images)
+    {
+        VkImageSubresourceRange range = {};
+        range.aspectMask = aspectMask;
+        range.levelCount = 1;
+        range.layerCount = 1;
+
+        vks::tools::setImageLayout(cmdBuf, image, oldLayout, newLayout, range);
+    }
+
+    vulkanDevice->flushCommandBuffer(cmdBuf, queue);
+}
+
+// 优化后的 createRasterizeBuffer
+
+void PBRTexture::createRasterizeBuffer()
+{
+    // 定义所有图像资源的配置
+    struct BufferConfig
+    {
+        vks::RasterizeBuffer* resource;
+        ImageResourceDesc desc;
+    };
+
+    std::vector<BufferConfig> bufferConfigs = {
+        // HWRZBuffer: 硬件光栅化深度缓冲
+        {
+            &HWRasterizeBuffer,
+            {
+                .format        = VK_FORMAT_D32_SFLOAT,
+                .usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                .aspectMask    = VK_IMAGE_ASPECT_DEPTH_BIT,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .targetLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                .createSampler = true
+            }
+        },
+        // HWRVisBuffer: 硬件光栅化可见性缓冲
+        {
+            &HWRVisBuffer,
+            {
+                .format        = VK_FORMAT_R32_UINT,
+                .usage         = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                .aspectMask    = VK_IMAGE_ASPECT_COLOR_BIT,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .targetLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .createSampler = false
+            }
+        },
+        // FinalVisBuffer: 最终可见性缓冲 (Compute Shader 读写)
+        {
+            &finalVisBuffer,
+            {
+                .format        = VK_FORMAT_R32_UINT,
+                .usage         = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                .aspectMask    = VK_IMAGE_ASPECT_COLOR_BIT,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .targetLayout  = VK_IMAGE_LAYOUT_GENERAL,
+                .createSampler = false
+            }
+        },
+        // FinalZBuffer: 最终深度缓冲 (Compute Shader 读写)
+        {
+            &finalZBuffer,
+            {
+                .format        = VK_FORMAT_R32_SFLOAT,
+                .usage         = VK_IMAGE_USAGE_STORAGE_BIT,
+                .aspectMask    = VK_IMAGE_ASPECT_COLOR_BIT,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .targetLayout  = VK_IMAGE_LAYOUT_GENERAL,
+                .createSampler = false
+            }
+        },
+        // SWRBuffer: 软件光栅化缓冲 (64-bit atomic)
+        {
+            &SWRasterizeBuffer,
+            {
+                .format        = VK_FORMAT_R64_UINT,
+                .usage         = VK_IMAGE_USAGE_STORAGE_BIT,
+                .aspectMask    = VK_IMAGE_ASPECT_COLOR_BIT,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .targetLayout  = VK_IMAGE_LAYOUT_GENERAL,
+                .createSampler = false
+            }
+        }
+    };
+	
+    for (const auto& config : bufferConfigs)
+    {
+        createImageResource(vulkanDevice, device, width, height, config.desc, *config.resource);
+    }
+
+    // 批量转换图像布局 (分组处理不同的目标布局)
+    
+    // Depth attachment layout
+    {
+        std::vector<std::pair<VkImage, VkImageAspectFlags>> depthImages = {
+            { HWRasterizeBuffer.image, VK_IMAGE_ASPECT_DEPTH_BIT }
+        };
+        transitionImageLayouts(vulkanDevice, queue, depthImages,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    }
+
+    // Color attachment layout
+    {
+        std::vector<std::pair<VkImage, VkImageAspectFlags>> colorAttachmentImages = {
+            { HWRVisBuffer.image, VK_IMAGE_ASPECT_COLOR_BIT }
+        };
+        transitionImageLayouts(vulkanDevice, queue, colorAttachmentImages,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    }
+
+    // General layout (for compute shader storage images)
+    {
+        std::vector<std::pair<VkImage, VkImageAspectFlags>> storageImages = {
+            { finalVisBuffer.image, VK_IMAGE_ASPECT_COLOR_BIT },
+            { finalZBuffer.image,   VK_IMAGE_ASPECT_COLOR_BIT },
+            { SWRasterizeBuffer.image,      VK_IMAGE_ASPECT_COLOR_BIT }
+        };
+        transitionImageLayouts(vulkanDevice, queue, storageImages,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    }
+
+    // 创建 Uniform Buffer
+    uboShading.invView = glm::inverse(camera.matrices.view);
+    uboShading.invProj = glm::inverse(camera.matrices.perspective);
+    uboShading.camPos  = camera.position * -1.0f;
+
+    VK_CHECK_RESULT(vulkanDevice->createBuffer(
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        sizeof(vks::UBOShading),
+        &uniformBuffers.shadingMats.buffer,
+        &uniformBuffers.shadingMats.memory,
+        &uboShading));
+
+    uniformBuffers.shadingMats.device = device;
+    VK_CHECK_RESULT(uniformBuffers.shadingMats.map());
+}
+
+void PBRTexture::createModelMatsBuffer()
+{
+	vks::vksTools::createStagingBuffer(*this, 0, modelMats.size()*sizeof(glm::mat4), modelMats.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT, modelMatsBuffer, true);
+}
+
+void PBRTexture::createHWRasterizeFrameBuffer()
+{
+	VkImageView attachments[2];
+	
+	attachments[0] = HWRVisBuffer.view;
+	attachments[1] = HWRasterizeBuffer.view;
+	
+	VkFramebufferCreateInfo framebufferCreateInfo = {};
+	framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	framebufferCreateInfo.pNext = nullptr;
+	framebufferCreateInfo.renderPass = hwRasterizeRenderPass;
+	framebufferCreateInfo.attachmentCount = 2;
+	framebufferCreateInfo.pAttachments = attachments;
+	framebufferCreateInfo.width = width;
+	framebufferCreateInfo.height = height;
+	framebufferCreateInfo.layers = 1;
+	
+	VK_CHECK_RESULT(vkCreateFramebuffer(vulkanDevice->logicalDevice, &framebufferCreateInfo, nullptr, &HWRasterizeFrameBuffer));
 }

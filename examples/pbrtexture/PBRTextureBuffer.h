@@ -35,6 +35,8 @@ namespace vks
 		Buffer scene;
 		Buffer skybox;
 		Buffer params;
+		Buffer modelMats;
+		Buffer shadingMats;
 
 		void destroy();
 	};
@@ -74,6 +76,8 @@ namespace vks
 		glm::mat4 model;
 		glm::mat4 lastView;
 		glm::mat4 lastProj;
+		glm::mat4 currView;
+		glm::mat4 currProj;
 	};
 
 	struct UBOErrorMatrices
@@ -82,6 +86,26 @@ namespace vks
 		glm::mat4 proj;
 		alignas(16) glm::vec3 camUp;
 		alignas(16) glm::vec3 camRight;
+	};
+	
+	struct UBOShading
+	{
+		glm::mat4 invView;
+		glm::mat4 invProj;
+		glm::vec3 camPos;
+	};
+	
+	struct ModelMaterices
+	{
+		glm::mat4 model;
+	};
+	
+	struct RasterizeBuffer
+	{
+		VkImage image;
+		VkDeviceMemory memory;
+		VkImageView view;
+		VkSampler sampler;
 	};
 
 	class VulkanResourceTracker
