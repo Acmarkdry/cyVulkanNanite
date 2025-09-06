@@ -1,0 +1,20 @@
+{
+    // 指定校验器路径。
+    // 如果你已经配置好了环境变量，通常直接写 "glslangValidator" 即可。
+    // 如果不行，请填写完整绝对路径，例如 "C:/VulkanSDK/1.3.xxx/Bin/glslangValidator.exe"
+    "glsl-lint.glslangValidatorPath": "glslangValidator",
+
+    // 非常重要：指定目标环境为 Vulkan 及其版本
+    // 这能确保它按照 Vulkan 的规则（如 PushConstant 对齐）来检查，而不是 OpenGL
+    "glsl-lint.targetEnv": "vulkan1.3",
+
+    // 关联文件扩展名
+    "files.associations": {
+        "*.vert": "glsl",
+        "*.frag": "glsl",
+        "*.comp": "glsl",
+        "*.geom": "glsl",
+        "*.tesc": "glsl",
+        "*.tese": "glsl"
+    }
+}

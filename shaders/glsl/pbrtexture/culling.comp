@@ -1,8 +1,7 @@
 #version 450
-#define WORKGROUP_SIZE 8*8
 
-const float threshold = 1e-3;
-// 线性剔除，所以是一维的
+#define WORKGROUP_SIZE 32
+
 layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
 struct Cluster
@@ -11,102 +10,270 @@ struct Cluster
     vec3 pMax;
     uint triangleStart;
     uint triangleEnd;
+    uint objectId;
 };
 
-layout(set = 0, binding = 0) buffer readonly ClustersIn{
-    Cluster inputData[];
+
+layout(std430, set = 0, binding = 0) buffer readonly ClustersIn {
+   Cluster indata[ ];
 };
 
-layout(set = 0, binding = 1) buffer readonly TrianglesIn{
-    uint inTriangles[];
+layout(std430, set = 0, binding = 1) buffer readonly TrianglesIn {
+   uint inTriangles[ ];
 };
 
-layout(set = 0, binding = 2) buffer writeonly TrianglesOut{
-    uint outTriangles[];
+layout(std430, set = 0, binding = 2) buffer writeonly TrianglesOut_hw {
+   uint outTriangles_hw[ ];
 };
 
-layout(set = 0, binding = 3) buffer NumVertices{
-    uint indexCount;
+layout(std430, set = 0, binding = 3) buffer NumVertices_hw {
+    uint indexCount; 
     uint instanceCount;
     uint firstIndex;
     uint vertexOffset;
     uint firstInstance;
-} numVertices;
+} numVertices_hw;
 
-layout(set = 0, binding = 4) uniform UBOMats{
-    mat4 model;
+layout(set = 0, binding = 4) uniform UBOMats {
+    mat4 model; //unused
     mat4 lastView;
     mat4 lastProj;
-} uboMats;
+    mat4 currView;
+    mat4 currProj;
+} ubomats;
 
 layout(set = 0, binding = 5) uniform sampler2D lastHZB;
 
-layout(set = 0, binding = 6) buffer readonly ProjectedError
-{
-    vec2 errorData[];
+layout(std430, set = 0, binding = 6) buffer readonly ProjectedError {
+   vec2 errorData[ ];
 };
 
-layout(push_constant) uniform PushConstants{
-    int numClusters;
-} pushConstans;
+layout(std430, set = 0, binding = 7) buffer writeonly IdOut_hw{
+   uvec3 outIds_hw[ ];
+};
 
-void getScreenAABB(Cluster cluster, inout vec4 screenXY, inout float minZ)
+layout(std430, set = 0, binding = 8) buffer writeonly TrianglesOut_sw {
+   uint outTriangles_sw[ ];
+};
+
+layout(std430, set = 0, binding = 9) buffer writeonly IdOut_sw {
+   uvec3 outIds_sw[ ];
+};
+
+layout(std430, set = 0, binding = 10) buffer NumVertices_sw {
+   uint indexCount;
+}numVertices_sw;
+
+
+
+layout(push_constant) uniform PushConstants {
+    int numClusters;
+    float threshold;
+    int useFrustrumOcclusion;
+    int useSoftwareRast;
+} pcs;
+
+// Naive AABB compute
+void getScreenAABB(Cluster c, inout vec4 screenXY, inout float minZ)
 {
-    vec4 pointArray[8];
-    vec4 pointMVPArray[8];
+    //TODO: reduce number of points check here
+    vec4 p0 = vec4(c.pMin.x,c.pMin.y,c.pMin.z,1.0);
+    vec4 p1 = vec4(c.pMax.x,c.pMin.y,c.pMin.z,1.0);
+    vec4 p2 = vec4(c.pMin.x,c.pMax.y,c.pMin.z,1.0);
+    vec4 p3 = vec4(c.pMin.x,c.pMin.y,c.pMax.z,1.0);
+    vec4 p4 = vec4(c.pMax.x,c.pMax.y,c.pMin.z,1.0);
+    vec4 p5 = vec4(c.pMin.x,c.pMax.y,c.pMax.z,1.0);
+    vec4 p6 = vec4(c.pMax.x,c.pMin.y,c.pMax.z,1.0);
+    vec4 p7 = vec4(c.pMax.x,c.pMax.y,c.pMax.z,1.0);
+
+    vec4 p0h = ubomats.lastProj * ubomats.lastView * p0;
+    vec4 p1h = ubomats.lastProj * ubomats.lastView * p1;
+    vec4 p2h = ubomats.lastProj * ubomats.lastView * p2;
+    vec4 p3h = ubomats.lastProj * ubomats.lastView * p3;
+    vec4 p4h = ubomats.lastProj * ubomats.lastView * p4;
+    vec4 p5h = ubomats.lastProj * ubomats.lastView * p5;
+    vec4 p6h = ubomats.lastProj * ubomats.lastView * p6;
+    vec4 p7h = ubomats.lastProj * ubomats.lastView * p7;
+
+    p0h.xyz /= p0h.w;
+    p1h.xyz /= p1h.w;
+    p2h.xyz /= p2h.w;
+    p3h.xyz /= p3h.w;
+    p4h.xyz /= p4h.w;
+    p5h.xyz /= p5h.w;
+    p6h.xyz /= p6h.w;
+    p7h.xyz /= p7h.w;
+
+    p0h.xy = p0h.xy*0.5+0.5;
+    p1h.xy = p1h.xy*0.5+0.5;
+    p2h.xy = p2h.xy*0.5+0.5;
+    p3h.xy = p3h.xy*0.5+0.5;
+    p4h.xy = p4h.xy*0.5+0.5;
+    p5h.xy = p5h.xy*0.5+0.5;
+    p6h.xy = p6h.xy*0.5+0.5;
+    p7h.xy = p7h.xy*0.5+0.5;
+
+    minZ = 1.0;
+    minZ = min(minZ, min(p0h.z,p1h.z));
+    minZ = min(minZ, min(p2h.z,p3h.z));
+    minZ = min(minZ, min(p4h.z,p5h.z));
+    minZ = min(minZ, min(p6h.z,p7h.z));
 
     vec2 minXY = vec2(1.0);
+    minXY = min(minXY, min(p0h.xy,p1h.xy));
+    minXY = min(minXY, min(p2h.xy,p3h.xy));
+    minXY = min(minXY, min(p4h.xy,p5h.xy));
+    minXY = min(minXY, min(p6h.xy,p7h.xy));
+
     vec2 maxXY = vec2(0.0);
-
-    for(int i = 0;i < 8; ++i)
-    {
-        pointArray[i] = vec4(cluster.pMin.x, cluster.pMin.y, cluster.pMin.z, 1.0);
-        pointMVPArray[i] = uboMats.lastProj* uboMats.lastView* pointArray[i];
-        pointMVPArray[i].xyz /= pointMVPArray[i].w;
-        pointMVPArray[i] = pointMVPArray[i]*0.5 + 0.5;
-
-        minZ = min(minZ, pointMVPArray[i].z);
-
-        minXY = min(minXY, pointMVPArray[i].xy);
-        maxXY = max(maxXY, pointMVPArray[i].xy);
-    }
+    maxXY = max(maxXY, max(p0h.xy,p1h.xy));
+    maxXY = max(maxXY, max(p2h.xy,p3h.xy));
+    maxXY = max(maxXY, max(p4h.xy,p5h.xy));
+    maxXY = max(maxXY, max(p6h.xy,p7h.xy));
 
     screenXY.xy = minXY;
     screenXY.zw = maxXY;
 }
 
-bool frustrumCulling(vec3 pos, mat4 curView, mat4 curProj)
+bool frustrumCulling(Cluster c)
 {
-    vec4 hizPos = curProj* curView *vec4(pos, 1.0);
-    if(hizPos.w == 0.0) return false;
+    const float eps = 1e-3;
+    bool inFrustrum = false;
+    vec4 hpos;
+    vec4 p0 = vec4(c.pMin.x,c.pMin.y,c.pMin.z,1.0);
+    vec4 p1 = vec4(c.pMax.x,c.pMin.y,c.pMin.z,1.0);
+    vec4 p2 = vec4(c.pMin.x,c.pMax.y,c.pMin.z,1.0);
+    vec4 p3 = vec4(c.pMin.x,c.pMin.y,c.pMax.z,1.0);
+    vec4 p4 = vec4(c.pMax.x,c.pMax.y,c.pMin.z,1.0);
+    vec4 p5 = vec4(c.pMin.x,c.pMax.y,c.pMax.z,1.0);
+    vec4 p6 = vec4(c.pMax.x,c.pMin.y,c.pMax.z,1.0);
+    vec4 p7 = vec4(c.pMax.x,c.pMax.y,c.pMax.z,1.0);
 
-    hizPos.xyz /= hizPos.w;
-    return hizPos.x >= -1.1 && hizPos.x <= 1.1 && hizPos.y <= 1.1 && hizPos.y <= 1.1;
+    hpos = ubomats.currProj * ubomats.currView * p0;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+
+    hpos = ubomats.currProj * ubomats.currView * p1;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+
+    hpos = ubomats.currProj * ubomats.currView * p2;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+    
+    hpos = ubomats.currProj * ubomats.currView * p3;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+
+    hpos = ubomats.currProj * ubomats.currView * p4;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+
+    hpos = ubomats.currProj * ubomats.currView * p5;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+
+    hpos = ubomats.currProj * ubomats.currView * p6;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+
+    hpos = ubomats.currProj * ubomats.currView * p7;
+    if(hpos.w==0.0) return false;
+    hpos.xyz /= hpos.w;
+    inFrustrum = inFrustrum || (hpos.x>-1.0-eps&&hpos.x<1.0+eps&&hpos.y>-1.0-eps&&hpos.y<1.0+eps&&hpos.z>0.0-eps&&hpos.z<1.0+eps);
+    
+    return !inFrustrum;
+}
+
+bool occlusionCulling(Cluster c, out float pixelArea)
+{
+    vec4 clipXY;
+    float minZ;
+    getScreenAABB(c,clipXY,minZ);
+    vec4 screenSize = textureSize(lastHZB, 0).xyxy;
+    vec4 screenXY = clipXY * screenSize;
+    vec2 screenSpan = screenXY.zw-screenXY.xy;
+    pixelArea = screenSpan.x*screenSpan.y;
+    float hzbLevel = ceil(log2(max(screenSpan.x,screenSpan.y)));
+    float hzbLevel_1 = max(hzbLevel-1,0);
+    float texScale = exp2(-hzbLevel_1);
+    vec2 texSpan = ceil(screenXY.zw*texScale) - floor(screenXY.xy*texScale);
+    if(texSpan.x<2&&texSpan.y<2) hzbLevel = hzbLevel_1;
+    float z1 = textureLod(lastHZB,vec2(clipXY.x,clipXY.y),hzbLevel).x;
+    float z2 = textureLod(lastHZB,vec2(clipXY.x,clipXY.w),hzbLevel).x;
+    float z3 = textureLod(lastHZB,vec2(clipXY.z,clipXY.y),hzbLevel).x;
+    float z4 = textureLod(lastHZB,vec2(clipXY.z,clipXY.w),hzbLevel).x;
+    float maxHiz = max(max(z1,z2),max(z3,z4));
+    return minZ>maxHiz;
 }
 
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
-    if(index >= pushConstans.numClusters)
-        return;
+    
+    if(index >= pcs.numClusters) return;
 
     bool culled = false;
-
-    culled = culled || (errorData[index].y <= threshold || errorData[index].x > threshold);
-
-    if(culled == false)
+    Cluster currCluster = indata[index];
+    float pixelArea;
+    if(pcs.useFrustrumOcclusion==1)
     {
-        uint totalVertices = (inputData[index].triangleEnd - inputData[index].triangleStart)*3;
-        uint nIdx = atomicAdd(numVertices.indexCount, totalVertices);
+        culled = culled || frustrumCulling(currCluster);
+        culled = culled || occlusionCulling(currCluster,pixelArea);
+    }
+    else
+    {
+        vec4 clipXY;
+        float minZ;
+        getScreenAABB(currCluster,clipXY,minZ);
+        vec4 screenSize = textureSize(lastHZB, 0).xyxy;
+        vec4 screenXY = clipXY * screenSize;
+        vec2 screenSpan = screenXY.zw-screenXY.xy;
+        pixelArea = screenSpan.x*screenSpan.y;
+    }
+    culled = culled || (errorData[index].y <= pcs.threshold||errorData[index].x > pcs.threshold);
+    bool useSWR = pcs.useSoftwareRast==1?pixelArea<256.0:false;
 
-        for(uint i = 0; i < totalVertices/3; ++i)
-        {
-            uint index = inputData[index].triangleStart*3 + 3*i;
-            uint outIndex = nIdx + 3*i;
-            outTriangles[outIndex + 0] = inTriangles[index + 0];
-            outTriangles[outIndex + 1] = inTriangles[index + 1];
-            outTriangles[outIndex + 2] = inTriangles[index + 2];
-        }
+    uint totalVertices = culled?0:(indata[index].triangleEnd - indata[index].triangleStart)*3;
+
+    uint localIdx;
+    if(!useSWR)
+    {
+        localIdx = atomicAdd(numVertices_hw.indexCount, totalVertices);
+    }
+    else
+    {
+        localIdx = atomicAdd(numVertices_sw.indexCount, totalVertices);
     }
 
+    if(!culled)
+    {
+        for(uint i = 0; i < totalVertices / 3; i++)
+        {
+            uint inIdx = indata[index].triangleStart * 3 + 3 * i;
+            uint outIdx = localIdx + 3 * i;
+            if(!useSWR)
+            {
+                outTriangles_hw[outIdx + 0] = inTriangles[inIdx + 0];
+                outTriangles_hw[outIdx + 1] = inTriangles[inIdx + 1];
+                outTriangles_hw[outIdx + 2] = inTriangles[inIdx + 2];
+                outIds_hw[outIdx/3] = uvec3(currCluster.objectId,index,i);
+            }
+            else
+            {
+                outTriangles_sw[outIdx + 0] = inTriangles[inIdx + 0];
+                outTriangles_sw[outIdx + 1] = inTriangles[inIdx + 1];
+                outTriangles_sw[outIdx + 2] = inTriangles[inIdx + 2];
+                outIds_sw[outIdx/3] = uvec3(currCluster.objectId,index,i);
+            }
+
+        }
+    }
 }
