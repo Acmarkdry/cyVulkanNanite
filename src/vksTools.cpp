@@ -87,14 +87,30 @@ namespace vks
 
 	void vksTools::setPbrDescriptor(PBRTexture& pbrTexture)
 	{
+	// 还是要写frame graph啊
 		auto descMgr = VulkanDescriptorManager::getManager();
 		// scene
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
-		setLayoutBindings = {initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 2), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 3), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 4), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 5), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 6), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 7), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 8), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 9),};
+		setLayoutBindings = {
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 2),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 3),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 4),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 5),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 6),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 7),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 8),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 9),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT, 10),
+				initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT, 11),
+		     };
+		     
 		descMgr->addSetLayout(DescriptorType::Scene, setLayoutBindings, 6);
 
 		// hiz
-		setLayoutBindings = {initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),};
+		setLayoutBindings = {initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+		initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),};
 		descMgr->addSetLayout(DescriptorType::hiz, setLayoutBindings, pbrTexture.textures.hizBuffer.mipLevels - 1);
 
 		// debug quad
@@ -106,18 +122,89 @@ namespace vks
 		descMgr->addSetLayout(DescriptorType::depthCopy, setLayoutBindings, 1);
 
 		// culling
-		setLayoutBindings = {initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 5), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),};
+		setLayoutBindings = {
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 7),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 9),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 10),
+		};
 		descMgr->addSetLayout(DescriptorType::culling, setLayoutBindings, 1);
 
 		// error proj
-		setLayoutBindings = {initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),};
+		setLayoutBindings = {
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+		};
 		descMgr->addSetLayout(DescriptorType::errorPorj, setLayoutBindings, 1);
+		
+		// hwrast
+		setLayoutBindings = {
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT, 0),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT, 1),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT, 2),
+		};
+		descMgr->addSetLayout(DescriptorType::hwRast, setLayoutBindings, 1);
+		
+		//sw rast
+		setLayoutBindings = {
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+		};
+		descMgr->addSetLayout(DescriptorType::swRast, setLayoutBindings, 1);
+		
+		//clear image
+		setLayoutBindings = {
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+		};
+		descMgr->addSetLayout(DescriptorType::clearImage, setLayoutBindings, 1);
+		
+		//merge rast
+		setLayoutBindings = {
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+		};
+		descMgr->addSetLayout(DescriptorType::mergeRast, setLayoutBindings, 1);
+		
+		// 最后的着色 shading
+		setLayoutBindings = {
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 0),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 2),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 3),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 4),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 5),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 6),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 7),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 8),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 9),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 10),
+		};
+		descMgr->addSetLayout(DescriptorType::shading, setLayoutBindings, 1);
 
 		descMgr->createLayoutsAndSets(pbrTexture.GetDevice());
 		auto &uniformBuffers = pbrTexture.uniformBuffers;
 		auto &textures = pbrTexture.textures;
 		auto &hizImageViews = pbrTexture.hizImageViews;
-
+		pbrTexture.modelMatsBuffer.setupDescriptor();
+		
 		descMgr->writeToSet(DescriptorType::Scene, 0, 0, &uniformBuffers.scene.descriptor);
 		descMgr->writeToSet(DescriptorType::Scene, 0, 1, &uniformBuffers.params.descriptor);
 		descMgr->writeToSet(DescriptorType::Scene, 0, 2, &textures.irradianceCube.descriptor);
@@ -128,7 +215,8 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::Scene, 0, 7, &textures.aoMap.descriptor);
 		descMgr->writeToSet(DescriptorType::Scene, 0, 8, &textures.metallicMap.descriptor);
 		descMgr->writeToSet(DescriptorType::Scene, 0, 9, &textures.roughnessMap.descriptor);
-
+		descMgr->writeToSet(DescriptorType::Scene, 0, 11, &pbrTexture.modelMatsBuffer.descriptor);
+		
 		descMgr->writeToSet(DescriptorType::Scene, 4, 0, &uniformBuffers.skybox.descriptor);
 		descMgr->writeToSet(DescriptorType::Scene, 4, 1, &uniformBuffers.params.descriptor);
 		descMgr->writeToSet(DescriptorType::Scene, 4, 2, &textures.environmentCube.descriptor);
@@ -155,7 +243,14 @@ namespace vks
 
 		// culling
 		pbrTexture.clustersInfoBuffer.setupDescriptor();
+		pbrTexture.hwRIndicesBuffer.setupDescriptor();
+		pbrTexture.hwRIDBuffer.setupDescriptor();
 		pbrTexture.culledIndicesBuffer.setupDescriptor();
+		pbrTexture.projectedErrorBuffer.setupDescriptor();
+		pbrTexture.swRIndicesBuffer.setupDescriptor();
+		pbrTexture.swRIDBuffer.setupDescriptor();
+		pbrTexture.swIndirectDispatchBuffer.setupDescriptor();
+		pbrTexture.swNumVerticesBuffer.setupDescriptor();
 		pbrTexture.drawIndexedIndirectBuffer.setupDescriptor();
 		pbrTexture.cullingUniformBuffer.setupDescriptor();
 		pbrTexture.projectedErrorBuffer.setupDescriptor();
@@ -166,12 +261,16 @@ namespace vks
 
 		descMgr->writeToSet(DescriptorType::culling, 0, 0, &pbrTexture.clustersInfoBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 1, &inputIndicesInfo);
-		descMgr->writeToSet(DescriptorType::culling, 0, 2, &pbrTexture.culledIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 2, &pbrTexture.hwRIndicesBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 3, &pbrTexture.drawIndexedIndirectBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 4, &pbrTexture.cullingUniformBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 5, &pbrTexture.textures.hizBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.projectedErrorBuffer.descriptor);
-
+		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.hwRIDBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.swRIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.swRIDBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.swNumVerticesBuffer.descriptor);
+		
 		// error
 		pbrTexture.errorInfoBuffer.setupDescriptor();
 		pbrTexture.projectedErrorBuffer.setupDescriptor();
@@ -179,7 +278,76 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::errorPorj, 0, 0, &pbrTexture.errorInfoBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::errorPorj, 0, 1, &pbrTexture.projectedErrorBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::errorPorj, 0, 2, &pbrTexture.errorUniformBuffer.descriptor);
+		
+		// hw rasterize
+		descMgr->writeToSet(DescriptorType::hwRast, 0, 0, &pbrTexture.modelMatsBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::hwRast, 0, 1, &pbrTexture.hwRIDBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::hwRast, 0, 2, &pbrTexture.uniformBuffers.scene.descriptor);
+		
+		// sw rasterize
+		VkDescriptorBufferInfo inputVertInfo{};
+		inputVertInfo.buffer = pbrTexture.scene.vertices.buffer;
+		inputVertInfo.range = VK_WHOLE_SIZE;
+		VkDescriptorImageInfo SWRImageInfo = {};
+		SWRImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		SWRImageInfo.imageView = pbrTexture.SWRasterizeBuffer.view;
+		pbrTexture.swRIndicesBuffer.setupDescriptor();
+		descMgr->writeToSet(DescriptorType::swRast, 0, 0, &inputVertInfo);
+		descMgr->writeToSet(DescriptorType::swRast, 0, 1, &pbrTexture.swRIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::swRast, 0, 2, &pbrTexture.modelMatsBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::swRast, 0, 3, &pbrTexture.swRIDBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::swRast, 0, 4, &pbrTexture.swNumVerticesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::swRast, 0, 5, &SWRImageInfo);
+		descMgr->writeToSet(DescriptorType::swRast, 0, 6, &uniformBuffers.scene.descriptor);
+		
+		// clear image
+		descMgr->writeToSet(DescriptorType::clearImage, 0, 0, &SWRImageInfo);
+		descMgr->writeToSet(DescriptorType::clearImage, 0, 1, &pbrTexture.swNumVerticesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::clearImage, 0, 2, &pbrTexture.swRIndicesBuffer.descriptor);
+		
+		// merge rasterize
+		VkDescriptorImageInfo HWRImageInfo = {};
+		HWRImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		HWRImageInfo.imageView = pbrTexture.HWRasterizeBuffer.view;
+		HWRImageInfo.sampler = pbrTexture.HWRasterizeBuffer.sampler;
+		descMgr->writeToSet(DescriptorType::mergeRast, 0, 0, &HWRImageInfo);
+		HWRImageInfo.sampler = 0;
+		HWRImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		HWRImageInfo.imageView = pbrTexture.HWRVisBuffer.view;
+		descMgr->writeToSet(DescriptorType::mergeRast, 0, 1, &HWRImageInfo);
+		descMgr->writeToSet(DescriptorType::mergeRast, 0, 2, &SWRImageInfo);
+		HWRImageInfo.sampler = 0;
+		HWRImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		HWRImageInfo.imageView = pbrTexture.finalZBuffer.view;
+		descMgr->writeToSet(DescriptorType::mergeRast, 0, 3, &HWRImageInfo);
+		HWRImageInfo.sampler = 0;
+		HWRImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		HWRImageInfo.imageView = pbrTexture.finalVisBuffer.view;
+		descMgr->writeToSet(DescriptorType::mergeRast, 0, 4, &HWRImageInfo);
+		
+		// shading
+		uniformBuffers.shadingMats.setupDescriptor();
+		
+		descMgr->writeToSet(DescriptorType::shading, 0, 0, &pbrTexture.clustersInfoBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::shading, 0, 1, &inputVertInfo);
+		descMgr->writeToSet(DescriptorType::shading, 0, 2, &inputIndicesInfo);
+		descMgr->writeToSet(DescriptorType::shading, 0, 3, &pbrTexture.modelMatsBuffer.descriptor);
+		HWRImageInfo.sampler = 0;
+		HWRImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		HWRImageInfo.imageView = pbrTexture.finalVisBuffer.view;
+		descMgr->writeToSet(DescriptorType::shading, 0, 4, &HWRImageInfo);
+		HWRImageInfo.sampler = 0;
+		HWRImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		HWRImageInfo.imageView = pbrTexture.finalZBuffer.view;
+		
+		descMgr->writeToSet(DescriptorType::shading, 0, 5, &HWRImageInfo);
+		descMgr->writeToSet(DescriptorType::shading, 0, 6, &pbrTexture.uniformBuffers.shadingMats.descriptor);
+		descMgr->writeToSet(DescriptorType::shading, 0, 7, &pbrTexture.uniformBuffers.params.descriptor);
+		descMgr->writeToSet(DescriptorType::shading, 0, 8, &pbrTexture.textures.irradianceCube.descriptor);
+		descMgr->writeToSet(DescriptorType::shading, 0, 9, &pbrTexture.textures.lutBrdf.descriptor);
+		descMgr->writeToSet(DescriptorType::shading, 0, 10, &pbrTexture.textures.prefilteredCube.descriptor);
 	}
+	
 
 	VkImageSubresourceRange vksTools::genDepthSubresourceRange()
 	{

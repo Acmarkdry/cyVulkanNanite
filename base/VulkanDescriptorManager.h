@@ -12,6 +12,11 @@ enum class DescriptorType
 	debugQuad,
 	culling,
 	errorPorj,
+	hwRast,
+	swRast,
+	clearImage,
+	mergeRast, // 光栅化
+	shading,
 };
 
 class VulkanDescriptorManager: public Singleton<VulkanDescriptorManager>

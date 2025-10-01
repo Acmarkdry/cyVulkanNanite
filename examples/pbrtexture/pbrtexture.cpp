@@ -61,9 +61,23 @@ PBRTexture::~PBRTexture()
 
 void PBRTexture::getEnabledFeatures()
 {
-	if (deviceFeatures.samplerAnisotropy)
-	{
+	if (deviceFeatures.samplerAnisotropy) {
 		enabledFeatures.samplerAnisotropy = VK_TRUE;
+	}
+	if (deviceFeatures.fillModeNonSolid) {
+		enabledFeatures.fillModeNonSolid = VK_TRUE;
+	}
+	if (deviceFeatures.geometryShader) {
+		enabledFeatures.geometryShader = VK_TRUE;
+	}
+	if (deviceFeatures.shaderInt64) {
+		enabledFeatures.shaderInt64 = VK_TRUE;
+	}
+	if (deviceFeatures.tessellationShader) {
+		enabledFeatures.tessellationShader = VK_TRUE;
+	}
+	if (deviceFeatures.fragmentStoresAndAtomics) {
+		enabledFeatures.fragmentStoresAndAtomics = VK_TRUE;
 	}
 }
 
@@ -134,7 +148,7 @@ void PBRTexture::createGraphicsPipelines()
 {
 	auto descManager = VulkanDescriptorManager::getManager();
 	const std::string shaderPath = getShadersPath() + "pbrtexture/";
-
+	
 	// 通用状态
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
 	VkPipelineRasterizationStateCreateInfo rasterizationState = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
@@ -143,14 +157,17 @@ void PBRTexture::createGraphicsPipelines()
 	VkPipelineDepthStencilStateCreateInfo depthStencilState = vks::initializers::pipelineDepthStencilStateCreateInfo(VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
 	VkPipelineViewportStateCreateInfo viewportState = vks::initializers::pipelineViewportStateCreateInfo(1, 1);
 	VkPipelineMultisampleStateCreateInfo multisampleState = vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
-
-	std::vector<VkDynamicState> dynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+	std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 	VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-
-	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
-
+	std::array<VkPipelineShaderStageCreateInfo, 3> shaderStages;
+	std::array<VkPipelineShaderStageCreateInfo, 3> pbrShaderStages;
+	VkPushConstantRange push_constant = {.size = sizeof(RenderingPushConstants)};
+	push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	
 	// Pipeline layout
 	VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::Scene), 1);
+	pipelineLayoutCI.pushConstantRangeCount = 1;
+	pipelineLayoutCI.pPushConstantRanges = &push_constant;
 	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 	// Pipeline创建信息
@@ -162,37 +179,81 @@ void PBRTexture::createGraphicsPipelines()
 	pipelineCI.pViewportState = &viewportState;
 	pipelineCI.pDepthStencilState = &depthStencilState;
 	pipelineCI.pDynamicState = &dynamicState;
-	pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
+	pipelineCI.stageCount = 2;
 	pipelineCI.pStages = shaderStages.data();
-	pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Tangent, vkglTF::VertexComponent::Joint0, vkglTF::VertexComponent::Weight0});
+	pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState(
+	{vkglTF::VertexComponent::Position, 
+	vkglTF::VertexComponent::Normal, 
+	vkglTF::VertexComponent::UV,
+	 vkglTF::VertexComponent::Tangent, 
+	 vkglTF::VertexComponent::Joint0,
+	  vkglTF::VertexComponent::Weight0
+	});
 
 	// Skybox pipeline
 	rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-	shaderStages[0] = loadShader(shaderPath + "skybox.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStages[1] = loadShader(shaderPath + "skybox.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[0] = loadShader(shaderPath + std::string(vks::ShaderName::skyboxVert), VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + std::string(vks::ShaderName::skyboxFrag), VK_SHADER_STAGE_FRAGMENT_BIT);
 	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.skybox));
 
 	// PBR pipeline
+	pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
 	rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
 	depthStencilState.depthWriteEnable = VK_TRUE;
 	depthStencilState.depthTestEnable = VK_TRUE;
-	shaderStages[0] = loadShader(shaderPath + "pbrtexture.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStages[1] = loadShader(shaderPath + "pbrtexture.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[0] = loadShader(shaderPath + std::string(vks::ShaderName::pbrtextureVert), VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + std::string(vks::ShaderName::pbrtextureFrag), VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[2] = loadShader(shaderPath + std::string(vks::ShaderName::pbrtextureGeom), VK_SHADER_STAGE_GEOMETRY_BIT);
 	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.pbr));
-
+	
+	pipelineCI.stageCount = 2;
+	
+	// hardware rasterize pipeline
+	pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::hwRast), 1);
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &hwrastPipeline.pipelineLayout));
+	pipelineCI.layout = hwrastPipeline.pipelineLayout;
+	pipelineCI.renderPass = hwRasterizeRenderPass;
+	
+	shaderStages[0] = loadShader(shaderPath + std::string(vks::ShaderName::hwrasterizeVert), VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + std::string(vks::ShaderName::hwrasterizeFrag), VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[2] = loadShader(shaderPath + std::string(vks::ShaderName::hwrasterizeGeom), VK_SHADER_STAGE_GEOMETRY_BIT);
+	pipelineCI.pStages = shaderStages.data();
+	pipelineCI.stageCount = 3;
+	rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &hwrastPipeline.pipeline));
+	
 	// Debug quad pipeline
 	pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::debugQuad), 1);
 	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &debugQuadPipeline.pipelineLayout));
 
 	pipelineCI.layout = debugQuadPipeline.pipelineLayout;
+	pipelineCI.renderPass = renderPass;
 	depthStencilState.depthWriteEnable = VK_FALSE;
 	depthStencilState.depthTestEnable = VK_FALSE;
 	rasterizationState.cullMode = VK_CULL_MODE_NONE;
 	VkPipelineVertexInputStateCreateInfo emptyVertexInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
 	pipelineCI.pVertexInputState = &emptyVertexInputState;
-	shaderStages[0] = loadShader(shaderPath + "debugQuad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStages[1] = loadShader(shaderPath + "debugQuad.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[0] = loadShader(shaderPath + std::string(vks::ShaderName::debugQuadVert), VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + std::string(vks::ShaderName::debugQuadFrag), VK_SHADER_STAGE_FRAGMENT_BIT);
 	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &debugQuadPipeline.pipeline));
+	
+	// shading pipeline
+	push_constant.size = sizeof(RenderingPushConstants);
+	push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::shading), 1);
+	pipelineLayoutCI.pushConstantRangeCount = 1;
+	pipelineLayoutCI.pPushConstantRanges = &push_constant;
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &shadingPipeline.pipelineLayout));
+	
+	pipelineCI.layout = shadingPipeline.pipelineLayout;
+	pipelineCI.renderPass = renderPass;	
+	shaderStages[0] = loadShader(shaderPath + std::string(vks::ShaderName::shadingVert), VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + std::string(vks::ShaderName::shadingFrag), VK_SHADER_STAGE_FRAGMENT_BIT);
+	pipelineCI.stageCount = 2;
+	pipelineCI.pStages = shaderStages.data();
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &shadingPipeline.pipeline));
+	pipelineLayoutCI.pushConstantRangeCount = 0;
 }
 
 void PBRTexture::createComputePipelines()
@@ -215,15 +276,24 @@ void PBRTexture::createComputePipelines()
 		pipelineCI.stage = stage;
 		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline.pipeline));
 	};
-
+	
+	// hiz
 	createComputePipeline("genHiz.comp.spv", DescriptorType::hiz, hizComputePipeline);
+	// clear image
+	createComputePipeline("clearImage.comp.spv", DescriptorType::clearImage, clearImagePipeline);
+	// software rasterize pipeline
+	createComputePipeline("swrasterize.comp.spv", DescriptorType::swRast, swComputePipeline);
+	// depth copy
 	createComputePipeline("depthCopy.comp.spv", DescriptorType::depthCopy, depthCopyPipeline);
-
+	// culling
 	VkPushConstantRange cullingPush{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(CullingPushConstants)};
 	createComputePipeline("culling.comp.spv", DescriptorType::culling, cullingPipeline, &cullingPush);
-
+	// error
 	VkPushConstantRange errorPush{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ErrorPushConstants)};
 	createComputePipeline("error.comp.spv", DescriptorType::errorPorj, errorProjPipeline, &errorPush);
+	// merge
+	VkPushConstantRange mergePush{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(renderPushConstants)};
+	createComputePipeline("mergeRast.comp.spv", DescriptorType::mergeRast, mergeRastPipeline, &mergePush);
 }
 
 void PBRTexture::setupRenderPass()
@@ -522,6 +592,29 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 
 	barrier = createBufferBarrier(culledIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDEX_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+	// soft ware rasterize
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clearImagePipeline.pipeline);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clearImagePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::clearImage, 0), 0, 0);
+	vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
+	
+	barrier = createBufferBarrier(swIndirectDispatchBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0,0,nullptr,1,&barrier,0,nullptr);
+	
+	VkImageSubresourceRange swRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+	imgBarrier = createImageBarrier(SWRasterizeBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, swRange);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,0,0,0,0,01,&imgBarrier);
+	
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, swComputePipeline.pipeline);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, swComputePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::swRast, 0), 0, 0);
+	vkCmdDispatchIndirect(cmdBuffer, swIndirectDispatchBuffer.buffer, 0);
+	
+	// merge
+	vkCmdPushConstants(cmdBuffer, mergeRastPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RenderingPushConstants), &renderPushConstants);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mergeRastPipeline.pipeline);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mergeRastPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::mergeRast, 0), 0, NULL);
+	vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
+	
 }
 
 void PBRTexture::buildCommandBuffers()
@@ -565,7 +658,39 @@ void PBRTexture::recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRen
 	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
 	VkDeviceSize offsets[1] = {0};
-
+	
+	// hw raster
+	VkClearValue clearValues1[2] = {};
+	clearValues1[0].color.uint32[0] = UINT32_MAX;
+	clearValues1[0].color.uint32[1] = UINT32_MAX;
+	clearValues1[0].color.uint32[2] = UINT32_MAX;
+	clearValues1[0].color.uint32[3] = UINT32_MAX;
+	clearValues1[1].depthStencil = { 1.0f, 0 };
+	VkRenderPassBeginInfo renderPassBeginInfo1 = vks::initializers::renderPassBeginInfo();
+	renderPassBeginInfo1.framebuffer = HWRasterizeFrameBuffer;
+	renderPassBeginInfo1.renderPass = hwRasterizeRenderPass;
+	renderPassBeginInfo1.renderArea.offset.x = 0;
+	renderPassBeginInfo1.renderArea.offset.y = 0;
+	renderPassBeginInfo1.renderArea.extent.width = width;
+	renderPassBeginInfo1.renderArea.extent.height = height;
+	renderPassBeginInfo1.clearValueCount = 2;
+	renderPassBeginInfo1.pClearValues = clearValues1;
+	
+	vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo1, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hwrastPipeline.pipeline);
+	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hwrastPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::hwRast, 0), 0, NULL);
+	vkCmdBindIndexBuffer(cmdBuffer, hwRIndicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &scene.vertices.buffer, offsets);
+	vkCmdDrawIndexedIndirect(cmdBuffer, drawIndexedIndirectBuffer.buffer, 0, 1, 0);
+	vkCmdEndRenderPass(cmdBuffer);
+	
+	// shading
+	vkCmdBeginRenderPass(cmdBuffer, &rpBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+	
 	if (displaySkybox)
 	{
 		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::Scene, 4), 0, nullptr);
@@ -853,8 +978,11 @@ void PBRTexture::setupDepthStencil()
 void PBRTexture::createCullingBuffers()
 {
 	// 创建剔除用的buffer
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, models.object.indices.count*sizeof(uint32_t), &culledIndicesBuffer.buffer, &culledIndicesBuffer.memory, nullptr))
-
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount*sizeof(uint32_t), &hwRIndicesBuffer.buffer, &hwRIndicesBuffer.memory, nullptr));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount/3*sizeof(glm::uvec3), &hwRIDBuffer.buffer, &hwRIDBuffer.memory, nullptr));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount*sizeof(uint32_t), &swRIndicesBuffer.buffer, &swRIndicesBuffer.memory, nullptr));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount/3*sizeof(glm::uvec3), &swRIDBuffer.buffer, &swRIDBuffer.memory, nullptr));	
+	
 	for (auto& clusterInfo : scene.clusterInfo)
 	{
 		clusterInfos.emplace_back(clusterInfo);
@@ -863,9 +991,11 @@ void PBRTexture::createCullingBuffers()
 	vks::vksTools::createStagingBuffer(*this, 0, clusterInfos.size() * sizeof(Nanite::ClusterInfo), clusterInfos.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, clustersInfoBuffer);
 
 	// 剔除用的uniform buffer
-	uboCullingMatrices.model = glm::mat4(1.0f);
+	uboCullingMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	uboCullingMatrices.lastView = camera.matrices.view;
 	uboCullingMatrices.lastProj = camera.matrices.perspective;
+	uboCullingMatrices.currView = camera.matrices.view;
+	uboCullingMatrices.currProj = camera.matrices.perspective;
 
 	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sizeof(uboCullingMatrices), &cullingUniformBuffer.buffer, &cullingUniformBuffer.memory, &uboCullingMatrices));
 	cullingUniformBuffer.device = device;
@@ -874,12 +1004,28 @@ void PBRTexture::createCullingBuffers()
 	drawIndexedIndirect.firstIndex = 0;
 	drawIndexedIndirect.firstInstance = 0;
 	drawIndexedIndirect.indexCount = models.object.indexBuffer.size();
-	drawIndexedIndirect.instanceCount = 1;
+	drawIndexedIndirect.instanceCount = 2;
 	drawIndexedIndirect.vertexOffset = 0;
 
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sizeof(drawIndexedIndirect), &drawIndexedIndirectBuffer.buffer, &drawIndexedIndirectBuffer.memory, &drawIndexedIndirect));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+	sizeof(drawIndexedIndirect), &drawIndexedIndirectBuffer.buffer, &drawIndexedIndirectBuffer.memory,
+	 &drawIndexedIndirect));
+	 
 	drawIndexedIndirectBuffer.device = device;
 	VK_CHECK_RESULT(drawIndexedIndirectBuffer.map());
+	
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, 
+	VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, sizeof(SWRIndirectBuffer), &swIndirectDispatchBuffer.buffer, &swIndirectDispatchBuffer.memory,nullptr));
+	
+	uint32_t numVertices = 0;
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+	VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+	sizeof(uint32_t),
+	&swNumVerticesBuffer.buffer, &swNumVerticesBuffer.memory, &numVertices
+	));
+	
+	swNumVerticesBuffer.device = device;
+	VK_CHECK_RESULT(swNumVerticesBuffer.map());
 }
 
 void PBRTexture::createErrorProjectionBuffers()

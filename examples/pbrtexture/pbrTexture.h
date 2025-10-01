@@ -88,6 +88,12 @@ public:
 	Pipeline debugQuadPipeline;
 	Pipeline cullingPipeline;
 	Pipeline errorProjPipeline;
+	
+	Pipeline hwrastPipeline;
+	Pipeline swComputePipeline;
+	Pipeline mergeRastPipeline;
+	Pipeline clearImagePipeline;
+	Pipeline shadingPipeline;
 
 	// HIZ相关
 	std::vector<VkImageView> hizImageViews;
@@ -101,10 +107,23 @@ public:
 	std::vector<Nanite::ErrorInfo> errorInfos;
 
 	// Culling缓冲区
+	vks::Buffer hwRIndicesBuffer;
+	vks::Buffer hwRIDBuffer;
+	vks::Buffer swRIndicesBuffer;
+	vks::Buffer swRIDBuffer;
 	vks::Buffer culledIndicesBuffer;
 	vks::Buffer clustersInfoBuffer;
 	vks::Buffer cullingUniformBuffer;
 	vks::Buffer drawIndexedIndirectBuffer;
+	vks::Buffer swIndirectDispatchBuffer;
+	vks::Buffer swNumVerticesBuffer;
+	
+	struct SWRIndirectBuffer {
+		uint32_t x = 0;
+		uint32_t y = 0;
+		uint32_t z = 0;
+	}swrIndirectBuffer;
+	
 	vks::DrawIndexedIndirect drawIndexedIndirect{};
 
 	// Error Projection缓冲区

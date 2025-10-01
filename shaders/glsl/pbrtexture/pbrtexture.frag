@@ -6,6 +6,7 @@ layout (location = 2) in vec2 inUV;
 layout (location = 3) in vec4 inTangent;
 layout (location = 4) in vec4 inClusterInfos;
 layout (location = 5) in vec4 inClusterGroupInfos;
+layout (location = 6) in flat uint inObjectId;
 
 layout (binding = 0) uniform UBO {
 	mat4 projection;
@@ -34,8 +35,8 @@ layout (binding = 9) uniform sampler2D roughnessMap;
 layout (location = 0) out vec4 outColor;
 
 #define PI 3.1415926535897932384626433832795
-#define ALBEDO pow(texture(albedoMap, inUV).rgb, vec3(2.2))
-
+//#define ALBEDO pow(texture(albedoMap, inUV).rgb, vec3(2.2))
+#define ALBEDO vec3(0.5)
 // From http://filmicgames.com/archives/75
 vec3 Uncharted2Tonemap(vec3 x)
 {
@@ -127,24 +128,65 @@ vec3 calculateNormal()
 	return normalize(TBN * tangentNormal);
 }
 
+layout(push_constant) uniform PushConstants {
+    int vis_clusters;
+} pcs;
+
 void main()
 {		
-	vec3 N = calculateNormal();
+	//if (inObjectId == 0) {
+	//	outColor = vec4(0.0, 0.0, 0.0, 0.0);
+	//	return;
+	//}
+	//else if (inObjectId == 1) {
+	//	outColor = vec4(1.0, 1.0, 1.0, 1.0);
+	//	return;
+	//}
+	//return;
+	if(pcs.vis_clusters==2)
+	{
+		int clusterId = int(inClusterInfos.w);
+		vec3 clusterColor = inClusterInfos.xyz;
+		// Only set this for convenience, no physical meaning
+		if (uboParams.gamma < 2.15){
+			outColor = vec4(inClusterGroupInfos.xyz, 1.0); // Uncomment this line to see Cluster visualization
+		}
+		else{
+			outColor = vec4(inClusterInfos.xyz, 1.0); // Uncomment this line to see ClusterGroup visualization
+		}
+		//outColor = vec4(1.0);
+		return;
+	}
+	else if(pcs.vis_clusters==1)
+	{
+		if(inClusterInfos.x<0.5)
+			outColor = vec4(vec3(1.0,0.0,0.0),1.0);
+		else if(inClusterInfos.x<1.5)
+			outColor = vec4(vec3(0.0,1.0,0.0),1.0);
+		else if(inClusterInfos.x<2.5)
+			outColor = vec4(vec3(0.0,0.0,1.0),1.0);
+		else if(inClusterInfos.x<3.5)
+			outColor = vec4(vec3(1.0,1.0,0.0),1.0);
+		else if(inClusterInfos.x<4.5)
+			outColor = vec4(vec3(1.0,0.0,1.0),1.0);
+		else 
+			outColor = vec4(vec3(0.0,1.0,1.0),1.0);
+		return;
+	}
+	//vec3 N = calculateNormal();
+
 	
-	if(inClusterInfos.x < 0.5)
-		outColor = vec4(vec3(1.0,0,0), 1.0);
-	else if(inClusterInfos.x < 1.5)
-		outColor = vec4(vec3(0.0,1.0,0.0),1.0);
-	else if(inClusterInfos.x < 2.5)
-		outColor = vec4(vec3(0.0, 0.0, 1.0), 1.0);
-	return;
-	
+
+	vec3 N = inNormal;
 
 	vec3 V = normalize(ubo.camPos - inWorldPos);
 	vec3 R = reflect(-V, N); 
 
-	float metallic = texture(metallicMap, inUV).r;
-	float roughness = texture(roughnessMap, inUV).r;
+	//float metallic = texture(metallicMap, inUV).r;
+	//float roughness = texture(roughnessMap, inUV).r;
+
+	float metallic = 0.1f;
+	float roughness = 0.8f;
 
 	vec3 F0 = vec3(0.04); 
 	F0 = mix(F0, ALBEDO, metallic);
@@ -170,8 +212,8 @@ void main()
 	// Ambient part
 	vec3 kD = 1.0 - F;
 	kD *= 1.0 - metallic;	  
-	vec3 ambient = (kD * diffuse + specular) * texture(aoMap, inUV).rrr;
-	
+	//vec3 ambient = (kD * diffuse + specular) * texture(aoMap, inUV).rrr;
+	vec3 ambient = (kD * diffuse + specular);
 	vec3 color = ambient + Lo;
 
 	// Tone mapping
