@@ -20,6 +20,9 @@ public:
 
 	// 虚函数覆盖
 	void getEnabledFeatures() override;
+	void getEnabledInstanceExtensions();
+	void getEnabledDeviceExtensions();
+	
 	void prepare() override;
 	void buildCommandBuffers() override;
 	void render() override;
@@ -56,6 +59,8 @@ public:
 private:
 	// 命令缓冲区辅助方法
 	void recordComputeCommands(VkCommandBuffer cmdBuffer, size_t frameIndex);
+	void recordHardwareRasterize(VkCommandBuffer cmdBuffer, size_t frameIndex, const VkRenderPassBeginInfo& rpBeginInfo);
+	void recordMerge(VkCommandBuffer cmdBuffer, size_t frameIndex);
 	void recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRenderPassBeginInfo& rpBeginInfo);
 	void recordDepthCopyCommands(VkCommandBuffer cmdBuffer);
 	void recordHizGenerationCommands(VkCommandBuffer cmdBuffer);
@@ -111,7 +116,6 @@ public:
 	vks::Buffer hwRIDBuffer;
 	vks::Buffer swRIndicesBuffer;
 	vks::Buffer swRIDBuffer;
-	vks::Buffer culledIndicesBuffer;
 	vks::Buffer clustersInfoBuffer;
 	vks::Buffer cullingUniformBuffer;
 	vks::Buffer drawIndexedIndirectBuffer;
@@ -166,6 +170,8 @@ public:
 	VkFramebuffer HWRasterizeFrameBuffer;
 	VkRenderPass hwRasterizeRenderPass;
 	
+	VkPhysicalDeviceShaderImageAtomicInt64FeaturesEXT imageAtomicInt64Feature{};
+
 	void setupRenderPass() override;
 
 private:

@@ -284,6 +284,7 @@ public:
 
 	VulkanExampleBase(bool enableValidation = false);
 	virtual ~VulkanExampleBase();
+	virtual void getEnabledDeviceExtensions() {};
 	/** @brief Setup the vulkan instance, enable required extensions and connect to the physical device (GPU) */
 	bool initVulkan();
 
@@ -359,6 +360,7 @@ public:
 #else
 	void setupWindow();
 #endif
+	virtual  void getEnabledInstanceExtensions() {};
 	/** @brief (Virtual) Creates the application wide Vulkan instance */
 	virtual VkResult createInstance(bool enableValidation);
 	/** @brief (Pure virtual) Render function to be implemented by the sample application */
@@ -382,7 +384,7 @@ public:
 	/** @brief (Virtual) Called after the physical device features have been read, can be used to set features to enable on the device */
 	virtual void getEnabledFeatures();
 	/** @brief (Virtual) Called after the physical device extensions have been read, can be used to enable extensions based on the supported extension listing*/
-	virtual void getEnabledExtensions();
+	virtual void getEnabledExtensions() {};
 
 	/** @brief Prepares all Vulkan resources and functions required to run the sample */
 	virtual void prepare();

@@ -245,7 +245,6 @@ namespace vks
 		pbrTexture.clustersInfoBuffer.setupDescriptor();
 		pbrTexture.hwRIndicesBuffer.setupDescriptor();
 		pbrTexture.hwRIDBuffer.setupDescriptor();
-		pbrTexture.culledIndicesBuffer.setupDescriptor();
 		pbrTexture.projectedErrorBuffer.setupDescriptor();
 		pbrTexture.swRIndicesBuffer.setupDescriptor();
 		pbrTexture.swRIDBuffer.setupDescriptor();
@@ -266,10 +265,10 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::culling, 0, 4, &pbrTexture.cullingUniformBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 5, &pbrTexture.textures.hizBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.projectedErrorBuffer.descriptor);
-		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.hwRIDBuffer.descriptor);
-		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.swRIndicesBuffer.descriptor);
-		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.swRIDBuffer.descriptor);
-		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.swNumVerticesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 7, &pbrTexture.hwRIDBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 8, &pbrTexture.swRIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 9, &pbrTexture.swRIDBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 10, &pbrTexture.swNumVerticesBuffer.descriptor);
 		
 		// error
 		pbrTexture.errorInfoBuffer.setupDescriptor();

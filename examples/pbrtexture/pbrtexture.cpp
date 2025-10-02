@@ -81,6 +81,21 @@ void PBRTexture::getEnabledFeatures()
 	}
 }
 
+void PBRTexture::getEnabledInstanceExtensions()
+{
+	enabledInstanceExtensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+}
+
+void PBRTexture::getEnabledDeviceExtensions()
+{
+	enabledDeviceExtensions.emplace_back(VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME);
+	enabledDeviceExtensions.emplace_back(VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME);
+		
+	imageAtomicInt64Feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_IMAGE_ATOMIC_INT64_FEATURES_EXT;
+	imageAtomicInt64Feature.shaderImageInt64Atomics = VK_TRUE;
+	deviceCreatepNextChain = &imageAtomicInt64Feature;
+}
+
 void PBRTexture::loadAssets()
 {
 	constexpr uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
@@ -234,6 +249,7 @@ void PBRTexture::createGraphicsPipelines()
 	rasterizationState.cullMode = VK_CULL_MODE_NONE;
 	VkPipelineVertexInputStateCreateInfo emptyVertexInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
 	pipelineCI.pVertexInputState = &emptyVertexInputState;
+	pipelineCI.stageCount = 2;
 	shaderStages[0] = loadShader(shaderPath + std::string(vks::ShaderName::debugQuadVert), VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStages[1] = loadShader(shaderPath + std::string(vks::ShaderName::debugQuadFrag), VK_SHADER_STAGE_FRAGMENT_BIT);
 	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &debugQuadPipeline.pipeline));
@@ -559,7 +575,8 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	// Error projection compute
 	auto barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
-
+	
+	// space error compute
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipeline);
 	errorPushConstants.numClusters = static_cast<int>(clusterInfos.size());
 	errorPushConstants.screenSize = glm::vec2(width, height);
@@ -578,6 +595,8 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	// Culling compute
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipeline);
 	cullingPushConstants.numClusters = static_cast<int>(clusterInfos.size());
+	cullingPushConstants.threshold = thresholdInt/thresholdIntDiv;
+	
 	vkCmdPushConstants(cmdBuffer, cullingPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(CullingPushConstants), &cullingPushConstants);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::culling, 0), 0, nullptr);
 	vkCmdDispatch(cmdBuffer, (cullingPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
@@ -590,10 +609,22 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	barrier = createBufferBarrier(drawIndexedIndirectBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 
-	barrier = createBufferBarrier(culledIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDEX_READ_BIT);
+	barrier = createBufferBarrier(hwRIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDEX_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 	
+	barrier = createBufferBarrier(hwRIDBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
 	// soft ware rasterize
+	barrier = createBufferBarrier(swNumVerticesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+	barrier = createBufferBarrier(swRIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+	barrier = createBufferBarrier(swRIDBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clearImagePipeline.pipeline);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clearImagePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::clearImage, 0), 0, 0);
 	vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
@@ -609,57 +640,16 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, swComputePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::swRast, 0), 0, 0);
 	vkCmdDispatchIndirect(cmdBuffer, swIndirectDispatchBuffer.buffer, 0);
 	
-	// merge
-	vkCmdPushConstants(cmdBuffer, mergeRastPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RenderingPushConstants), &renderPushConstants);
-	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mergeRastPipeline.pipeline);
-	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mergeRastPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::mergeRast, 0), 0, NULL);
-	vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
-	
+	imgBarrier = createImageBarrier(SWRasterizeBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, swRange);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
 }
 
-void PBRTexture::buildCommandBuffers()
-{
-	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-	auto descMgr = VulkanDescriptorManager::getManager();
-
-	VkClearValue clearValues[2];
-	clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}};
-	clearValues[1].depthStencil = {1.0f, 0};
-
-	VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-	renderPassBeginInfo.renderPass = renderPass;
-	renderPassBeginInfo.renderArea = {{0, 0}, {width, height}};
-	renderPassBeginInfo.clearValueCount = 2;
-	renderPassBeginInfo.pClearValues = clearValues;
-
-	for (size_t i = 0; i < drawCmdBuffers.size(); ++i)
-	{
-		renderPassBeginInfo.framebuffer = frameBuffers[i];
-		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
-
-		recordComputeCommands(drawCmdBuffers[i], i);
-		recordRenderPassCommands(drawCmdBuffers[i], renderPassBeginInfo);
-		recordDepthCopyCommands(drawCmdBuffers[i]);
-		recordHizGenerationCommands(drawCmdBuffers[i]);
-
-		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
-	}
-}
-
-void PBRTexture::recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRenderPassBeginInfo& rpBeginInfo)
+void PBRTexture::recordHardwareRasterize(VkCommandBuffer cmdBuffer, size_t frameIndex, const VkRenderPassBeginInfo& rpBeginInfo)
 {
 	auto descMgr = VulkanDescriptorManager::getManager();
 
-	vkCmdBeginRenderPass(cmdBuffer, &rpBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport = vks::initializers::viewport(static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f);
+	VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 	VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
-	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
-	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
-
-	VkDeviceSize offsets[1] = {0};
-	
-	// hw raster
 	VkClearValue clearValues1[2] = {};
 	clearValues1[0].color.uint32[0] = UINT32_MAX;
 	clearValues1[0].color.uint32[1] = UINT32_MAX;
@@ -682,9 +672,91 @@ void PBRTexture::recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRen
 	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hwrastPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::hwRast, 0), 0, NULL);
 	vkCmdBindIndexBuffer(cmdBuffer, hwRIndicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+	VkDeviceSize offsets[1] = { 0 };
 	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &scene.vertices.buffer, offsets);
 	vkCmdDrawIndexedIndirect(cmdBuffer, drawIndexedIndirectBuffer.buffer, 0, 1, 0);
 	vkCmdEndRenderPass(cmdBuffer);
+	
+	VkBufferMemoryBarrier barrier = createBufferBarrier(hwRIndicesBuffer.buffer, VK_ACCESS_INDEX_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+	barrier = createBufferBarrier(hwRIndicesBuffer.buffer, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+	VkImageSubresourceRange imageSubresource = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+	VkImageMemoryBarrier imgBarrier = createImageBarrier(HWRasterizeBuffer.image, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
+	
+	imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imgBarrier = createImageBarrier(HWRVisBuffer.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
+
+}
+
+void PBRTexture::recordMerge(VkCommandBuffer cmdBuffer, size_t frameIndex)
+{	
+	auto descMgr = VulkanDescriptorManager::getManager();
+	
+	// merge
+	vkCmdPushConstants(cmdBuffer, mergeRastPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(RenderingPushConstants), &renderPushConstants);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mergeRastPipeline.pipeline);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mergeRastPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::mergeRast, 0), 0, NULL);
+	vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
+	
+	VkImageSubresourceRange imageSubresource = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+	VkImageMemoryBarrier imgBarrier = createImageBarrier(HWRasterizeBuffer.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
+	
+	imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imgBarrier = createImageBarrier(HWRVisBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_SHADER_READ_BIT,VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
+
+	imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;	
+	imgBarrier = createImageBarrier(finalZBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
+	
+	imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imgBarrier = createImageBarrier(finalVisBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
+}
+
+void PBRTexture::buildCommandBuffers()
+{
+	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+	
+	VkClearValue clearValues[2];
+	clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}};
+	clearValues[1].depthStencil = {1.0f, 0};
+
+	VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
+	renderPassBeginInfo.renderPass = renderPass;
+	renderPassBeginInfo.renderArea = {{0, 0}, {width, height}};
+	renderPassBeginInfo.clearValueCount = 2;
+	renderPassBeginInfo.pClearValues = clearValues;
+
+	for (size_t i = 0; i < drawCmdBuffers.size(); ++i)
+	{
+		renderPassBeginInfo.framebuffer = frameBuffers[i];
+		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+
+		recordComputeCommands(drawCmdBuffers[i], i);
+		recordHardwareRasterize(drawCmdBuffers[i], i, renderPassBeginInfo);
+		recordMerge(drawCmdBuffers[i], i);
+		recordRenderPassCommands(drawCmdBuffers[i], renderPassBeginInfo);
+		recordDepthCopyCommands(drawCmdBuffers[i]);
+		recordHizGenerationCommands(drawCmdBuffers[i]);
+
+		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
+	}
+}
+
+void PBRTexture::recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRenderPassBeginInfo& rpBeginInfo)
+{
+	auto descMgr = VulkanDescriptorManager::getManager();
+	
+	VkViewport viewport = vks::initializers::viewport(static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f);
+	VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+	VkDeviceSize offsets[1] = {0};
 	
 	// shading
 	vkCmdBeginRenderPass(cmdBuffer, &rpBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -693,19 +765,30 @@ void PBRTexture::recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRen
 	
 	if (displaySkybox)
 	{
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::Scene, 4), 0, nullptr);
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::Scene, 4), 0, NULL);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.skybox);
+		vkCmdPushConstants(cmdBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(RenderingPushConstants), &renderPushConstants);
 		models.skybox.draw(cmdBuffer);
 	}
-
-	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::Scene, 0), 0, nullptr);
-	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.pbr);
-	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &scene.vertices.buffer, offsets);
-	vkCmdBindIndexBuffer(cmdBuffer, culledIndicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexedIndirect(cmdBuffer, drawIndexedIndirectBuffer.buffer, 0, 1, 0);
-
+	
+	// shading
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadingPipeline.pipeline);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadingPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::shading, 0), 0, 0);
+	vkCmdPushConstants(cmdBuffer, shadingPipeline.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(RenderingPushConstants), &renderPushConstants);
+	vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+	
 	drawUI(cmdBuffer);
 	vkCmdEndRenderPass(cmdBuffer);
+	
+	// final z 这里的布局回复
+	VkImageSubresourceRange imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+	imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;	
+	auto imgBarrier = createImageBarrier(finalZBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
+	
+	imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imgBarrier = createImageBarrier(finalVisBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, imageSubresource);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
 }
 
 

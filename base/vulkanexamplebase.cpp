@@ -78,6 +78,7 @@ VkResult VulkanExampleBase::createInstance(bool enableValidation)
 		enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 	}
 #endif
+	getEnabledInstanceExtensions();
 
 	// Enabled requested instance extensions
 	if (enabledInstanceExtensions.size() > 0) 
@@ -92,21 +93,10 @@ VkResult VulkanExampleBase::createInstance(bool enableValidation)
 			instanceExtensions.push_back(enabledExtension);
 		}
 	}
-		
-	// VkValidationFeatureEnableEXT enabledFeatures[] ={
-	// 	VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
-	// // VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
-	// // VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT  // 顺便开同步验证
-	// };
-	
-	// VkValidationFeaturesEXT validationFeatures{};
-	// validationFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
-	// validationFeatures.enabledValidationFeatureCount = 3;
-	// validationFeatures.pEnabledValidationFeatures = enabledFeatures;
-	
+
 	VkInstanceCreateInfo instanceCreateInfo = {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pNext = nullptr;
+	instanceCreateInfo.pNext = NULL;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)) && defined(VK_KHR_portability_enumeration)
@@ -787,7 +777,6 @@ void VulkanExampleBase::submitFrame()
 	else {
 		VK_CHECK_RESULT(result);
 	}
-	
 	VK_CHECK_RESULT(vkQueueWaitIdle(queue));
 }
 
@@ -1071,7 +1060,7 @@ bool VulkanExampleBase::initVulkan()
 	vulkanDevice = new vks::VulkanDevice(physicalDevice);
 
 	// Derived examples can enable extensions based on the list of supported extensions read from the physical device
-	getEnabledExtensions();
+	getEnabledDeviceExtensions();
 
 	VkResult res = vulkanDevice->createLogicalDevice(enabledFeatures, enabledDeviceExtensions, deviceCreatepNextChain);
 	if (res != VK_SUCCESS) {
@@ -3146,8 +3135,6 @@ void VulkanExampleBase::setupRenderPass()
 }
 
 void VulkanExampleBase::getEnabledFeatures() {}
-
-void VulkanExampleBase::getEnabledExtensions() {}
 
 void VulkanExampleBase::windowResize()
 {
