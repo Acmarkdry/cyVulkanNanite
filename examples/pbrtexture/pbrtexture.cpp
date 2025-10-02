@@ -806,6 +806,10 @@ void PBRTexture::recordDepthCopyCommands(VkCommandBuffer cmdBuffer)
 
 	imgBarrier = createImageBarrier(depthStencil.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, depthRange);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	
+	depthRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, depthRange);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imgBarrier);
 }
 
 void PBRTexture::recordHizGenerationCommands(VkCommandBuffer cmdBuffer)
@@ -1147,9 +1151,9 @@ void PBRTexture::createNaniteScene()
 	scene.naniteMeshes.emplace_back(naniteMesh);
 	modelMats.clear();
 
-	for (int i = 0; i <= 0; i++)
+	for (int i = 0; i <= 3; i++)
 	{
-		for (int j = 0; j <= 0; j++)
+		for (int j = 0; j <= 3; j++)
 		{
 			auto modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(i * 3, 1.2f, j * 3));
 			auto instance = Nanite::NaniteInstance(&naniteMesh, modelMat);
