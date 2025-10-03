@@ -118,7 +118,10 @@ namespace vks
 		descMgr->addSetLayout(DescriptorType::debugQuad, setLayoutBindings, 1);
 
 		// depth copy
-		setLayoutBindings = {initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 0), initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),};
+		setLayoutBindings = {
+		initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0), 
+		initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+		};
 		descMgr->addSetLayout(DescriptorType::depthCopy, setLayoutBindings, 1);
 
 		// culling
@@ -235,7 +238,7 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::debugQuad, 0, 0, &textures.hizBuffer.descriptor);
 
 		// depth copy
-		VkDescriptorImageInfo depthStencilImage = initializers::descriptorImageInfo(pbrTexture.depthStencilSampler, pbrTexture.depthStencil.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		VkDescriptorImageInfo depthStencilImage = initializers::descriptorImageInfo(nullptr, pbrTexture.finalZBuffer.view, VK_IMAGE_LAYOUT_GENERAL);
 		VkDescriptorImageInfo outputImage = initializers::descriptorImageInfo(nullptr, hizImageViews[0], VK_IMAGE_LAYOUT_GENERAL);
 
 		descMgr->writeToSet(DescriptorType::depthCopy, 0, 0, &depthStencilImage);
