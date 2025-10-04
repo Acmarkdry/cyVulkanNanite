@@ -3,7 +3,7 @@
  * Writes visibility ID to visibility buffer
  */
 #version 450
-
+#extension GL_GOOGLE_include_directive:enable
 #include "data_structures.glsl"
 
 //=============================================================================
