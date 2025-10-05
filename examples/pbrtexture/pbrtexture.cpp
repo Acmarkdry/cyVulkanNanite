@@ -573,6 +573,7 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	auto descMgr = VulkanDescriptorManager::getManager();
 
 	// Error projection compute
+	// error proj -> culling
 	auto barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 	
@@ -583,20 +584,21 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	vkCmdPushConstants(cmdBuffer, errorProjPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ErrorPushConstants), &errorPushConstants);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::errorPorj, 0), 0, nullptr);
 	vkCmdDispatch(cmdBuffer, (errorPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
-
+	
+	// culling -> error proj
 	barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 
-	// HIZ布局转换
+	// Culling compute 
+	// 先进行一下HIZ布局转换
 	VkImageSubresourceRange hizRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, textures.hizBuffer.mipLevels, 0, 1};
 	auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, hizRange);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
-
-	// Culling compute
+	
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipeline);
+	
 	cullingPushConstants.numClusters = static_cast<int>(clusterInfos.size());
 	cullingPushConstants.threshold = thresholdInt/thresholdIntDiv;
-	
 	vkCmdPushConstants(cmdBuffer, cullingPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(CullingPushConstants), &cullingPushConstants);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::culling, 0), 0, nullptr);
 	vkCmdDispatch(cmdBuffer, (cullingPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
@@ -605,7 +607,7 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, hizRange);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
 
-	// Indirect draw buffer barrier
+	// Indirect and hw draw buffer barrier 
 	barrier = createBufferBarrier(drawIndexedIndirectBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 
@@ -616,6 +618,7 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 	
 	// soft ware rasterize
+	// clear image的barrier
 	barrier = createBufferBarrier(swNumVerticesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 	
@@ -625,10 +628,12 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	barrier = createBufferBarrier(swRIDBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 	
+	// clear image
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clearImagePipeline.pipeline);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clearImagePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::clearImage, 0), 0, 0);
 	vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
 	
+	// sw rast
 	barrier = createBufferBarrier(swIndirectDispatchBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0,0,nullptr,1,&barrier,0,nullptr);
 	
@@ -647,7 +652,8 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 void PBRTexture::recordHardwareRasterize(VkCommandBuffer cmdBuffer, size_t frameIndex, const VkRenderPassBeginInfo& rpBeginInfo)
 {
 	auto descMgr = VulkanDescriptorManager::getManager();
-
+	
+	// 为了可以蹭到硬件的优化，通过render pass去获取hard ware rasterize的相关数据
 	VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 	VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 	VkClearValue clearValues1[2] = {};

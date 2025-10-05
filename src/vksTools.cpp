@@ -251,7 +251,6 @@ namespace vks
 		pbrTexture.projectedErrorBuffer.setupDescriptor();
 		pbrTexture.swRIndicesBuffer.setupDescriptor();
 		pbrTexture.swRIDBuffer.setupDescriptor();
-		pbrTexture.swIndirectDispatchBuffer.setupDescriptor();
 		pbrTexture.swNumVerticesBuffer.setupDescriptor();
 		pbrTexture.drawIndexedIndirectBuffer.setupDescriptor();
 		pbrTexture.cullingUniformBuffer.setupDescriptor();
