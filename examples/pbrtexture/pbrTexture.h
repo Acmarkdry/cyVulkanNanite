@@ -74,6 +74,10 @@ private:
 	void createGraphicsPipelines();
 	void createComputePipelines();
 
+	// Shader热重载
+	void destroyPipelines();
+	void reloadShaders();
+
 public:
 	// 显示设置
 	bool displaySkybox = true;

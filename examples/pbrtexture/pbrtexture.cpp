@@ -314,20 +314,28 @@ void PBRTexture::createComputePipelines()
 
 void PBRTexture::setupRenderPass()
 {
-	// VulkanExampleBase::setupRenderPass();
-	
+	VulkanExampleBase::setupRenderPass();
+	VkAttachmentReference colorReference = {};
+	colorReference.attachment = 0;
+	colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depthReference = {};
+	depthReference.attachment = 1;
+	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 	std::array<VkAttachmentDescription, 2> attachments = {};
+
 	// Color attachment
-	attachments[0].format = swapChain.colorFormat;
+	attachments[0].format = VK_FORMAT_R32_UINT;
 	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
 	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	// Depth attachment
-	attachments[1].format = depthFormat;
+	attachments[1].format = VK_FORMAT_D32_SFLOAT;
 	attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
 	attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -336,11 +344,9 @@ void PBRTexture::setupRenderPass()
 	attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-	VkAttachmentReference colorReference = {};
 	colorReference.attachment = 0;
 	colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-	VkAttachmentReference depthReference = {};
 	depthReference.attachment = 1;
 	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
@@ -375,68 +381,6 @@ void PBRTexture::setupRenderPass()
 	dependencies[1].dependencyFlags = 0;
 
 	VkRenderPassCreateInfo renderPassInfo = {};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-	renderPassInfo.pAttachments = attachments.data();
-	renderPassInfo.subpassCount = 1;
-	renderPassInfo.pSubpasses = &subpassDescription;
-	renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
-	renderPassInfo.pDependencies = dependencies.data();
-
-	VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
-
-	// Color attachment
-	attachments[0].format = VK_FORMAT_R32_UINT;
-	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
-	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	// Depth attachment
-	attachments[1].format = VK_FORMAT_D32_SFLOAT;
-	attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
-	attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	colorReference.attachment = 0;
-	colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	depthReference.attachment = 1;
-	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpassDescription.colorAttachmentCount = 1;
-	subpassDescription.pColorAttachments = &colorReference;
-	subpassDescription.pDepthStencilAttachment = &depthReference;
-	subpassDescription.inputAttachmentCount = 0;
-	subpassDescription.pInputAttachments = nullptr;
-	subpassDescription.preserveAttachmentCount = 0;
-	subpassDescription.pPreserveAttachments = nullptr;
-	subpassDescription.pResolveAttachments = nullptr;
-
-	// Subpass dependencies for layout transitions
-
-	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependencies[0].dstSubpass = 0;
-	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	dependencies[0].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-	dependencies[0].dependencyFlags = 0;
-
-	dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependencies[1].dstSubpass = 0;
-	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[1].srcAccessMask = 0;
-	dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-	dependencies[1].dependencyFlags = 0;
 
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
@@ -879,6 +823,13 @@ void PBRTexture::OnUpdateUIOverlay(vks::UIOverlay* overlay)
 	if (overlay->header("Settings"))
 	{
 		bool bNeedRebuildCommandBuffer = false;
+		
+		// Shader热重载按钮
+		if (overlay->button("Reload Shaders"))
+		{
+			reloadShaders();
+		}
+		
 		if (overlay->inputFloat("Exposure", &uniformDataParams.exposure, 0.1f, 2))
 		{
 			updateParams();
@@ -1424,4 +1375,55 @@ void PBRTexture::createHWRasterizeFrameBuffer()
 	framebufferCreateInfo.layers = 1;
 	
 	VK_CHECK_RESULT(vkCreateFramebuffer(vulkanDevice->logicalDevice, &framebufferCreateInfo, nullptr, &HWRasterizeFrameBuffer));
+}
+
+void PBRTexture::destroyPipelines()
+{
+	if (pipelines.skybox != VK_NULL_HANDLE)
+	{
+		vkDestroyPipeline(device, pipelines.skybox, nullptr);
+		pipelines.skybox = VK_NULL_HANDLE;
+	}
+	if (pipelines.pbr != VK_NULL_HANDLE)
+	{
+		vkDestroyPipeline(device, pipelines.pbr, nullptr);
+		pipelines.pbr = VK_NULL_HANDLE;
+	}
+	if (pipelineLayout != VK_NULL_HANDLE)
+	{
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		pipelineLayout = VK_NULL_HANDLE;
+	}
+
+	// custom pipeline
+	hwrastPipeline.destroy(device);
+	debugQuadPipeline.destroy(device);
+	shadingPipeline.destroy(device);
+
+	// compute pipeline
+	hizComputePipeline.destroy(device);
+	depthCopyPipeline.destroy(device);
+	clearImagePipeline.destroy(device);
+	swComputePipeline.destroy(device);
+	cullingPipeline.destroy(device);
+	errorProjPipeline.destroy(device);
+	mergeRastPipeline.destroy(device);
+}
+
+void PBRTexture::reloadShaders()
+{
+	vkDeviceWaitIdle(device);
+	destroyPipelines();
+	
+	for (auto& shaderModule : shaderModules)
+	{
+		if (shaderModule != VK_NULL_HANDLE)
+		{
+			vkDestroyShaderModule(device, shaderModule, nullptr);
+		}
+	}
+	shaderModules.clear();
+	
+	preparePipelines();
+	buildCommandBuffers();
 }
