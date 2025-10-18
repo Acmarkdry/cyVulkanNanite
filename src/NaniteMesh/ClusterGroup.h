@@ -24,7 +24,7 @@ namespace Nanite
 		std::vector<idx_t> localTriangleClusterIndices;
 		std::vector<NaniteTriMesh::HalfedgeHandle> clusterGroupHalfedges;
 
-		static constexpr int TARGET_CLUSTER_SIZE = CLUSTER_SIZE;
+		static constexpr int TARGET_CLUSTER_SIZE = CLUSTER_TARGET_SIZE;
 		static constexpr idx_t METIS_RANDOM_SEED = 42;
 
 		idx_t localClusterNum = 0;
@@ -35,11 +35,15 @@ namespace Nanite
 		std::unordered_map<uint32_t, uint32_t> triangleIndicesGlobalLocalMap;
 
 		float qemError = 0.0f;
+		glm::vec3 pMin = glm::vec3(FLT_MAX);
+		glm::vec3 pMax = glm::vec3(-FLT_MAX);
 
 		void buildTriangleIndicesLocalGlobalMapping();
 		void buildLocalTriangleGraph();
 		void generateLocalClusters();
-
+		
+		void mergeAABB(const glm::vec3& pMinOther, const glm::vec3& pMaxOther);
+		
 	private:
 		[[nodiscard]] idx_t calculateEmbeddedSize() const noexcept;
 	};

@@ -117,6 +117,19 @@ namespace vks
 		setLayoutBindings = {initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0)};
 		descMgr->addSetLayout(DescriptorType::debugQuad, setLayoutBindings, 1);
 
+		setLayoutBindings = {
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 7),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
+		};
+		descMgr->addSetLayout(DescriptorType::bvhTraversal, setLayoutBindings, 2);
+
 		// depth copy
 		setLayoutBindings = {
 		initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0), 
@@ -137,6 +150,9 @@ namespace vks
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 8),
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 9),
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 10),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 11),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 12),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 13),
 		};
 		descMgr->addSetLayout(DescriptorType::culling, setLayoutBindings, 1);
 
@@ -145,6 +161,9 @@ namespace vks
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
 		};
 		descMgr->addSetLayout(DescriptorType::errorPorj, setLayoutBindings, 1);
 		
@@ -244,6 +263,35 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::depthCopy, 0, 0, &depthStencilImage);
 		descMgr->writeToSet(DescriptorType::depthCopy, 0, 1, &outputImage);
 
+		//BVH Traversal
+		pbrTexture.bvhNodeInfosBuffer.setupDescriptor();
+		pbrTexture.currNodeInfosBuffer.setupDescriptor();
+		pbrTexture.nextNodeInfosBuffer.setupDescriptor();
+		pbrTexture.culledClusterIndicesBuffer.setupDescriptor();
+		pbrTexture.cullingUniformBuffer.setupDescriptor();
+		pbrTexture.errorUniformBuffer.setupDescriptor();
+		pbrTexture.culledClusterObjectIndicesBuffer.setupDescriptor();
+		pbrTexture.sortedClusterIndicesBuffer.setupDescriptor();
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 0, &pbrTexture.bvhNodeInfosBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 1, &pbrTexture.currNodeInfosBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 2, &pbrTexture.nextNodeInfosBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 3, &pbrTexture.culledClusterIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 4, &pbrTexture.cullingUniformBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 5, &textures.hizBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 6, &pbrTexture.errorUniformBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 7, &pbrTexture.culledClusterObjectIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 0, 8, &pbrTexture.sortedClusterIndicesBuffer.descriptor);
+		
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 0, &pbrTexture.bvhNodeInfosBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 1, &pbrTexture.nextNodeInfosBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 2, &pbrTexture.currNodeInfosBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 3, &pbrTexture.culledClusterIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 4, &pbrTexture.cullingUniformBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 5, &textures.hizBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 6, &pbrTexture.errorUniformBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 7, &pbrTexture.culledClusterObjectIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::bvhTraversal, 1, 8, &pbrTexture.sortedClusterIndicesBuffer.descriptor);
+
 		// culling
 		pbrTexture.clustersInfoBuffer.setupDescriptor();
 		pbrTexture.hwRIndicesBuffer.setupDescriptor();
@@ -271,6 +319,9 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::culling, 0, 8, &pbrTexture.swRIndicesBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 9, &pbrTexture.swRIDBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 10, &pbrTexture.swNumVerticesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 11, &pbrTexture.culledClusterIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 12, &pbrTexture.culledClusterObjectIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 13, &pbrTexture.modelMatsBuffer.descriptor);
 		
 		// error
 		pbrTexture.errorInfoBuffer.setupDescriptor();
@@ -279,6 +330,9 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::errorPorj, 0, 0, &pbrTexture.errorInfoBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::errorPorj, 0, 1, &pbrTexture.projectedErrorBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::errorPorj, 0, 2, &pbrTexture.errorUniformBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::errorPorj, 0, 3, &pbrTexture.culledClusterIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::errorPorj, 0, 4, &pbrTexture.culledClusterObjectIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::errorPorj, 0, 5, &pbrTexture.modelMatsBuffer.descriptor);
 		
 		// hw rasterize
 		descMgr->writeToSet(DescriptorType::hwRast, 0, 0, &pbrTexture.modelMatsBuffer.descriptor);

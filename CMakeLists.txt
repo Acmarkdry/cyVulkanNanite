@@ -1,4 +1,13 @@
-cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20...4.3 FATAL_ERROR)
+
+# For CMake 4.x compatibility - set policies before project()
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)  # FindBoost prefers BoostConfig.cmake
+endif()
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)  # install(SCRIPT|CODE) genex handling
+endif()
+
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 

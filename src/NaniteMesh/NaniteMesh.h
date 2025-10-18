@@ -48,10 +48,20 @@ namespace Nanite
 		std::vector<ClusterNode> flattenedClusterNodes;
 		void flattenDAG();
 
+		/************ Flatten BVH *************/
+		std::shared_ptr<NaniteBVHNode> virtualBVHRootNode;
+		std::vector<NaniteBVHNodeInfo> flattenedBVHNodeInfos;
+		void flattenBVH();
+
 		// 序列化
 		void generateNaniteInfo();
 		void serialize(const std::string& filepath);
 		void deserialize(const std::string& filepath);
+		
+		std::vector<ClusterInfo> clusterInfo;
+		std::vector<ErrorInfo> errorInfo;
+		std::vector<uint32_t> sortedClusterIndices;
+		void buildClusterInfo();
 
 		void initNaniteInfo(const std::string& filepath, bool useCache = true);
 		vks::VulkanDevice* device;
@@ -61,6 +71,8 @@ namespace Nanite
 		std::vector<uint32_t> indexBuffer;
 		std::vector<vkglTF::Vertex> vertexBuffer;
 		std::vector<vkglTF::Primitive> primitives;
+		
+		std::vector<uint32_t> clusterIndexOffset; // This offset is caused by different LOD
 
 		const char* filepath = nullptr;
 		const char* cache_time_key = "cache_time";

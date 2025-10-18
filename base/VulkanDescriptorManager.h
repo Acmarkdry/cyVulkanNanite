@@ -16,6 +16,7 @@ enum class DescriptorType
 	swRast,
 	clearImage,
 	mergeRast, // 光栅化
+	bvhTraversal,
 	shading,
 };
 

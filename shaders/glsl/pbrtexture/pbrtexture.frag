@@ -1,211 +1,226 @@
-/*
- * Forward PBR Fragment Shader
- * Standard PBR shading with IBL support for forward rendering path
- */
 #version 450
-#extension GL_GOOGLE_include_directive:enable
-#include "pbr_common.glsl"
 
-//=============================================================================
-// Shader I/O
-//=============================================================================
-layout(location = 0) in vec3 inWorldPos;
-layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec2 inTexCoord;
-layout(location = 3) in vec4 inTangent;
-layout(location = 4) in vec4 inClusterInfo;
-layout(location = 5) in vec4 inClusterGroupInfo;
-layout(location = 6) in flat uint inObjectId;
+layout (location = 0) in vec3 inWorldPos;
+layout (location = 1) in vec3 inNormal;
+layout (location = 2) in vec2 inUV;
+layout (location = 3) in vec4 inTangent;
+layout (location = 4) in vec4 inClusterInfos;
+layout (location = 5) in vec4 inClusterGroupInfos;
+layout (location = 6) in flat uint inObjectId;
 
-layout(location = 0) out vec4 outColor;
+layout (binding = 0) uniform UBO {
+	mat4 projection;
+	mat4 model;
+	mat4 view;
+	vec3 camPos;
+} ubo;
 
-//=============================================================================
-// Uniform Buffers
-//=============================================================================
-layout(binding = 0) uniform CameraUBO {
-    mat4 projection;
-    mat4 model;
-    mat4 view;
-    vec3 cameraPos;
-} camera;
+layout (binding = 1) uniform UBOParams {
+	vec4 lights[4];
+	float exposure;
+	float gamma;
+} uboParams;
 
-layout(binding = 1) uniform LightingUBO {
-    vec4  lightPositions[4];
-    float exposure;
-    float gamma;
-} lighting;
+layout (binding = 2) uniform samplerCube samplerIrradiance;
+layout (binding = 3) uniform sampler2D samplerBRDFLUT;
+layout (binding = 4) uniform samplerCube prefilteredMap;
 
-//=============================================================================
-// IBL Textures
-//=============================================================================
-layout(binding = 2) uniform samplerCube irradianceMap;
-layout(binding = 3) uniform sampler2D   brdfLUT;
-layout(binding = 4) uniform samplerCube prefilterMap;
+layout (binding = 5) uniform sampler2D albedoMap;
+layout (binding = 6) uniform sampler2D normalMap;
+layout (binding = 7) uniform sampler2D aoMap;
+layout (binding = 8) uniform sampler2D metallicMap;
+layout (binding = 9) uniform sampler2D roughnessMap;
 
-//=============================================================================
-// Material Textures
-//=============================================================================
-layout(binding = 5) uniform sampler2D albedoMap;
-layout(binding = 6) uniform sampler2D normalMap;
-layout(binding = 7) uniform sampler2D aoMap;
-layout(binding = 8) uniform sampler2D metallicMap;
-layout(binding = 9) uniform sampler2D roughnessMap;
 
-//=============================================================================
-// Push Constants
-//=============================================================================
+layout (location = 0) out vec4 outColor;
+
+#define PI 3.1415926535897932384626433832795
+//#define ALBEDO pow(texture(albedoMap, inUV).rgb, vec3(2.2))
+#define ALBEDO vec3(0.5)
+// From http://filmicgames.com/archives/75
+vec3 Uncharted2Tonemap(vec3 x)
+{
+	float A = 0.15;
+	float B = 0.50;
+	float C = 0.10;
+	float D = 0.20;
+	float E = 0.02;
+	float F = 0.30;
+	return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
+}
+
+// Normal Distribution function --------------------------------------
+float D_GGX(float dotNH, float roughness)
+{
+	float alpha = roughness * roughness;
+	float alpha2 = alpha * alpha;
+	float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
+	return (alpha2)/(PI * denom*denom); 
+}
+
+// Geometric Shadowing function --------------------------------------
+float G_SchlicksmithGGX(float dotNL, float dotNV, float roughness)
+{
+	float r = (roughness + 1.0);
+	float k = (r*r) / 8.0;
+	float GL = dotNL / (dotNL * (1.0 - k) + k);
+	float GV = dotNV / (dotNV * (1.0 - k) + k);
+	return GL * GV;
+}
+
+// Fresnel function ----------------------------------------------------
+vec3 F_Schlick(float cosTheta, vec3 F0)
+{
+	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+vec3 F_SchlickR(float cosTheta, vec3 F0, float roughness)
+{
+	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+vec3 prefilteredReflection(vec3 R, float roughness)
+{
+	const float MAX_REFLECTION_LOD = 9.0; // todo: param/const
+	float lod = roughness * MAX_REFLECTION_LOD;
+	float lodf = floor(lod);
+	float lodc = ceil(lod);
+	vec3 a = textureLod(prefilteredMap, R, lodf).rgb;
+	vec3 b = textureLod(prefilteredMap, R, lodc).rgb;
+	return mix(a, b, lod - lodf);
+}
+
+vec3 specularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, float metallic, float roughness)
+{
+	// Precalculate vectors and dot products	
+	vec3 H = normalize (V + L);
+	float dotNH = clamp(dot(N, H), 0.0, 1.0);
+	float dotNV = clamp(dot(N, V), 0.0, 1.0);
+	float dotNL = clamp(dot(N, L), 0.0, 1.0);
+
+	// Light color fixed
+	vec3 lightColor = vec3(1.0);
+
+	vec3 color = vec3(0.0);
+
+	if (dotNL > 0.0) {
+		// D = Normal distribution (Distribution of the microfacets)
+		float D = D_GGX(dotNH, roughness); 
+		// G = Geometric shadowing term (Microfacets shadowing)
+		float G = G_SchlicksmithGGX(dotNL, dotNV, roughness);
+		// F = Fresnel factor (Reflectance depending on angle of incidence)
+		vec3 F = F_Schlick(dotNV, F0);		
+		vec3 spec = D * F * G / (4.0 * dotNL * dotNV + 0.001);		
+		vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);			
+		color += (kD * ALBEDO / PI + spec) * dotNL;
+	}
+
+	return color;
+}
+
+vec3 calculateNormal()
+{
+	vec3 tangentNormal = texture(normalMap, inUV).xyz * 2.0 - 1.0;
+
+	vec3 N = normalize(inNormal);
+	vec3 T = normalize(inTangent.xyz);
+	vec3 B = normalize(cross(N, T));
+	mat3 TBN = mat3(T, B, N);
+	return normalize(TBN * tangentNormal);
+}
+
 layout(push_constant) uniform PushConstants {
-    int visualizationMode;  // 0: PBR, 1: LOD, 2: Cluster/ClusterGroup
-} pushConsts;
-
-//=============================================================================
-// Constants
-//=============================================================================
-#define DEFAULT_ALBEDO vec3(0.5)
-
-//=============================================================================
-// IBL Functions
-//=============================================================================
-
-vec3 samplePrefilterMap(vec3 R, float roughness)
-{
-    float lod = roughness * MAX_REFLECTION_LOD;
-    float lodFloor = floor(lod);
-    float lodCeil  = ceil(lod);
-    vec3 a = textureLod(prefilterMap, R, lodFloor).rgb;
-    vec3 b = textureLod(prefilterMap, R, lodCeil).rgb;
-    return mix(a, b, lod - lodFloor);
-}
-
-//=============================================================================
-// Normal Mapping
-//=============================================================================
-
-vec3 calculateTBNNormal()
-{
-    vec3 tangentNormal = texture(normalMap, inTexCoord).xyz * 2.0 - 1.0;
-    
-    vec3 N = normalize(inNormal);
-    vec3 T = normalize(inTangent.xyz);
-    vec3 B = normalize(cross(N, T) * inTangent.w);
-    mat3 TBN = mat3(T, B, N);
-    
-    return normalize(TBN * tangentNormal);
-}
-
-//=============================================================================
-// PBR Lighting
-//=============================================================================
-
-vec3 calcDirectLighting(vec3 L, vec3 V, vec3 N, vec3 F0,
-                         float metallic, float roughness, vec3 albedo)
-{
-    vec3 H = normalize(V + L);
-    
-    float NdotH = max(dot(N, H), 0.0);
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    
-    if (NdotL <= 0.0) return vec3(0.0);
-    
-    // Cook-Torrance BRDF
-    float D = distributionGGX(NdotH, roughness);
-    float G = geometrySmith(NdotL, NdotV, roughness);
-    vec3  F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-    
-    vec3 specular = (D * G * F) / (4.0 * NdotL * NdotV + EPSILON);
-    vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
-    
-    return (kD * albedo * INV_PI + specular) * NdotL;
-}
-
-vec3 calcIndirectLighting(vec3 V, vec3 N, vec3 R, vec3 F0,
-                           float metallic, float roughness, vec3 albedo)
-{
-    float NdotV = max(dot(N, V), 0.0);
-    
-    vec3 F = fresnelSchlickRoughness(NdotV, F0, roughness);
-    vec3 kD = (1.0 - F) * (1.0 - metallic);
-    
-    // Diffuse IBL
-    vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuse = irradiance * albedo;
-    
-    // Specular IBL
-    vec3 prefilteredColor = samplePrefilterMap(R, roughness);
-    vec2 envBRDF = texture(brdfLUT, vec2(NdotV, roughness)).rg;
-    vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
-    
-    return kD * diffuse + specular;
-}
-
-//=============================================================================
-// Visualization
-//=============================================================================
-
-vec4 visualizeCluster()
-{
-    // Toggle between cluster and cluster group based on gamma threshold
-    if (lighting.gamma < 2.15) {
-        return vec4(inClusterGroupInfo.rgb, 1.0);
-    }
-    return vec4(inClusterInfo.rgb, 1.0);
-}
-
-vec4 visualizeLodLevel()
-{
-    return vec4(lodLevelToColor(inClusterInfo.x), 1.0);
-}
-
-//=============================================================================
-// Main
-//=============================================================================
+    int vis_clusters;
+} pcs;
 
 void main()
-{
-    // Handle visualization modes
-    if (pushConsts.visualizationMode == 2) {
-        outColor = visualizeCluster();
-        return;
-    }
-    else if (pushConsts.visualizationMode == 1) {
-        outColor = visualizeLodLevel();
-        return;
-    }
-    
-    // Normal (use vertex normal for now, enable normal mapping if needed)
-    vec3 N = normalize(inNormal);
-    // vec3 N = calculateTBNNormal();  // Enable for normal mapping
-    
-    vec3 V = normalize(camera.cameraPos - inWorldPos);
-    vec3 R = reflect(-V, N);
-    
-    // Material properties (hardcoded for now, TODO: sample from textures)
-    vec3  albedo    = DEFAULT_ALBEDO;
-    float metallic  = 0.1;
-    float roughness = 0.8;
-    // vec3  albedo    = pow(texture(albedoMap, inTexCoord).rgb, vec3(2.2));
-    // float metallic  = texture(metallicMap, inTexCoord).r;
-    // float roughness = texture(roughnessMap, inTexCoord).r;
-    
-    // Calculate F0
-    vec3 F0 = mix(vec3(0.04), albedo, metallic);
-    
-    // Direct lighting
-    vec3 Lo = vec3(0.0);
-    for (int i = 0; i < 4; i++) {
-        vec3 L = normalize(lighting.lightPositions[i].xyz - inWorldPos);
-        Lo += calcDirectLighting(L, V, N, F0, metallic, roughness, albedo);
-    }
-    
-    // Indirect lighting (IBL)
-    vec3 ambient = calcIndirectLighting(V, N, R, F0, metallic, roughness, albedo);
-    
-    // Final color
-    vec3 color = ambient + Lo;
-    
-    // Tone mapping and gamma correction
-    color = applyToneMapping(color, lighting.exposure, lighting.gamma);
-    
-    outColor = vec4(color, 1.0);
+{		
+	//if (inObjectId == 0) {
+	//	outColor = vec4(0.0, 0.0, 0.0, 0.0);
+	//	return;
+	//}
+	//else if (inObjectId == 1) {
+	//	outColor = vec4(1.0, 1.0, 1.0, 1.0);
+	//	return;
+	//}
+	//return;
+	if(pcs.vis_clusters==2)
+	{
+		int clusterId = int(inClusterInfos.w);
+		vec3 clusterColor = inClusterInfos.xyz;
+		// Only set this for convenience, no physical meaning
+		if (uboParams.gamma < 2.15){
+			outColor = vec4(inClusterGroupInfos.xyz, 1.0); // Uncomment this line to see Cluster visualization
+		}
+		else{
+			outColor = vec4(inClusterInfos.xyz, 1.0); // Uncomment this line to see ClusterGroup visualization
+		}
+		//outColor = vec4(1.0);
+		return;
+	}
+	else if(pcs.vis_clusters==1)
+	{
+		if(inClusterInfos.x<0.5)
+			outColor = vec4(vec3(1.0,0.0,0.0),1.0);
+		else if(inClusterInfos.x<1.5)
+			outColor = vec4(vec3(0.0,1.0,0.0),1.0);
+		else if(inClusterInfos.x<2.5)
+			outColor = vec4(vec3(0.0,0.0,1.0),1.0);
+		else if(inClusterInfos.x<3.5)
+			outColor = vec4(vec3(1.0,1.0,0.0),1.0);
+		else if(inClusterInfos.x<4.5)
+			outColor = vec4(vec3(1.0,0.0,1.0),1.0);
+		else 
+			outColor = vec4(vec3(0.0,1.0,1.0),1.0);
+		return;
+	}
+	//vec3 N = calculateNormal();
+
+	
+
+	vec3 N = inNormal;
+
+	vec3 V = normalize(ubo.camPos - inWorldPos);
+	vec3 R = reflect(-V, N); 
+
+	//float metallic = texture(metallicMap, inUV).r;
+	//float roughness = texture(roughnessMap, inUV).r;
+
+	float metallic = 0.1f;
+	float roughness = 0.8f;
+
+	vec3 F0 = vec3(0.04); 
+	F0 = mix(F0, ALBEDO, metallic);
+
+	vec3 Lo = vec3(0.0);
+	for(int i = 0; i < uboParams.lights[i].length(); i++) {
+		vec3 L = normalize(uboParams.lights[i].xyz - inWorldPos);
+		Lo += specularContribution(L, V, N, F0, metallic, roughness);
+	}   
+	
+	vec2 brdf = texture(samplerBRDFLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+	vec3 reflection = prefilteredReflection(R, roughness).rgb;	
+	vec3 irradiance = texture(samplerIrradiance, N).rgb;
+
+	// Diffuse based on irradiance
+	vec3 diffuse = irradiance * ALBEDO;	
+
+	vec3 F = F_SchlickR(max(dot(N, V), 0.0), F0, roughness);
+
+	// Specular reflectance
+	vec3 specular = reflection * (F * brdf.x + brdf.y);
+
+	// Ambient part
+	vec3 kD = 1.0 - F;
+	kD *= 1.0 - metallic;	  
+	//vec3 ambient = (kD * diffuse + specular) * texture(aoMap, inUV).rrr;
+	vec3 ambient = (kD * diffuse + specular);
+	vec3 color = ambient + Lo;
+
+	// Tone mapping
+	color = Uncharted2Tonemap(color * uboParams.exposure);
+	color = color * (1.0f / Uncharted2Tonemap(vec3(11.2f)));	
+	// Gamma correction
+	color = pow(color, vec3(1.0f / uboParams.gamma));
+
+	outColor = vec4(color, 1.0);
 }

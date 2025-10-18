@@ -32,11 +32,28 @@ namespace Nanite
 		std::vector<ErrorInfo> errorInfo;
 
 		uint32_t sceneIndicesCount = 0;
-		uint32_t visibleIndicesCount = 0;
 
+		std::shared_ptr<NaniteBVHNode> virtualRootNode; // The root node that connects all instances' root nodes
+		std::vector<BVHNodeInfo> nodeInfos; // cleaned version
+		std::vector<uint32_t> clusterIndexOffsets; 
+		std::vector<BVHNodeInfo> bvhNodeInfos; // cleaned version
+		std::vector<uint32_t> depthCounts;
+		std::vector<uint32_t> depthLeafCounts; // Just for stats, not in usage
+		std::vector<uint32_t> initNodeInfoIndices;
+		uint32_t maxDepthCounts = 0;
+
+		std::vector<uint32_t> clusterIndexCounts;
+		uint32_t maxClusterNum = 0;
+
+		std::vector<uint32_t> sortedClusterIndices;
+
+		uint32_t maxLodLevelNum = -1;
+		
+		void createNaniteSceneInfo(VulkanExampleBase& link);
 		void createVertexIndexBuffer(VulkanExampleBase& link);
-		void createClusterInfos();
-
+		void createClusterInfos(VulkanExampleBase& link);
+		void createBVHNodeInfos(VulkanExampleBase& link);
+	
 	private:
 		[[nodiscard]] size_t calculateTotalVertexCount() const;
 		[[nodiscard]] size_t calculateTotalIndexCount() const;

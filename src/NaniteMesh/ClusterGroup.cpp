@@ -95,4 +95,10 @@ namespace Nanite
 
 		NaniteAssert(result == METIS_OK, "METIS_PartGraphKway failed");
 	}
+
+	void ClusterGroup::mergeAABB(const glm::vec3& pMinOther, const glm::vec3& pMaxOther)
+	{
+		pMin = glm::min(pMin, pMinOther);
+		pMax = glm::max(pMax, pMaxOther);
+	}
 }

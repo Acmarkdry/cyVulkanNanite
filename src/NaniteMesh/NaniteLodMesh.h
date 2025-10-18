@@ -8,6 +8,7 @@
 #include <OpenMesh/Tools/Decimater/DecimaterT.hh>
 #include <OpenMesh/Tools/Decimater/ModQuadricT.hh>
 #include "VulkanglTFModel.h"
+#include "NaniteBVH.h"
 
 class VulkanExampleBase;
 
@@ -18,6 +19,7 @@ namespace vks
 
 namespace Nanite
 {
+	class NaniteBVHNodeInfo;
 	class Cluster;
 	class ClusterGroup;
 	class NaniteBVHNode;
@@ -37,14 +39,14 @@ namespace Nanite
 		uint32_t lodLevel = 0;
 		Graph triangleGraph;
 		int clusterNum = 0;
-		const int targetClusterSize = CLUSTER_SIZE;
+		const int targetClusterSize = CLUSTER_TARGET_SIZE;
 		std::vector<idx_t> triangleClusterIndex;
 		std::unordered_map<int, int> clusterColorAssignment;
 		std::vector<Cluster> clusters;
 
 		Graph clusterGraph;
 		int clusterGroupNum = 0;
-		const int targetClusterGroupSize = CLUSTER_GROUP_SIZE;
+		const int targetClusterGroupSize = CLUSTER_GROUP_TARGET_SIZE;
 		std::vector<idx_t> clusterGroupIndex;
 		std::unordered_map<int, int> clusterGroupColorAssignment;
 		std::vector<ClusterGroup> clusterGroups;
@@ -93,6 +95,18 @@ namespace Nanite
 		void initUniqueVertexBuffer();
 		void createVertexBuffer(VulkanExampleBase& variableLink);
 		std::vector<glm::vec3> positions;
+		
+		std::shared_ptr<NaniteBVHNode> rootBVHNode;
+		void createBVH();
+		void buildBVH();
+		void updateBVHError();
+		void updateBVHErrorCore(std::shared_ptr<NaniteBVHNode> currNode, float& currNodeError, glm::vec4& currNodeBoundingSphere);
+		void traverseBVH();
+		void getClusterGroupAABB(ClusterGroup & clusterGroup);
+		void flattenBVH();
+
+		std::vector<NaniteBVHNodeInfo> flattenedBVHNodes;
+		std::vector<uint32_t> levelCounts; // Store the counts of nodes in each level
 
 	private:
 		static constexpr idx_t METIS_RANDOM_SEED = 42;

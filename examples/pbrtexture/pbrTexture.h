@@ -58,6 +58,7 @@ public:
 
 private:
 	// 命令缓冲区辅助方法
+	void recordBVHCommands(VkCommandBuffer cmdBuffer, size_t frameIndex);
 	void recordComputeCommands(VkCommandBuffer cmdBuffer, size_t frameIndex);
 	void recordHardwareRasterize(VkCommandBuffer cmdBuffer, size_t frameIndex, const VkRenderPassBeginInfo& rpBeginInfo);
 	void recordMerge(VkCommandBuffer cmdBuffer, size_t frameIndex);
@@ -65,6 +66,8 @@ private:
 	void recordDepthCopyCommands(VkCommandBuffer cmdBuffer);
 	void recordHizGenerationCommands(VkCommandBuffer cmdBuffer);
 	void recordDebugQuadCommands(VkCommandBuffer cmdBuffer, const VkRenderPassBeginInfo& rpBeginInfo, const VkViewport& viewport, const VkRect2D& scissor);
+	
+	void createBVHTraversalBuffers();
 
 	// 内存屏障辅助方法
 	[[nodiscard]] static VkBufferMemoryBarrier createBufferBarrier(VkBuffer buffer, VkAccessFlags srcAccess, VkAccessFlags dstAccess);
@@ -97,6 +100,7 @@ public:
 	Pipeline debugQuadPipeline;
 	Pipeline cullingPipeline;
 	Pipeline errorProjPipeline;
+	Pipeline bvhTraversalPipeline;
 	
 	Pipeline hwrastPipeline;
 	Pipeline swComputePipeline;
@@ -163,10 +167,25 @@ public:
 	int thresholdInt = 500;
 	double thresholdIntDiv = 1e6;
 	int visClustersLevel = 0;
+	
+	struct BVHTraversalPushConstants {
+		alignas(8) glm::vec2 screenSize;
+		alignas(4) float threshold;
+	} bvhTraversalPushConstants;
+	
 	struct RenderingPushConstants
 	{
 		int visClusters = 0;
 	} renderPushConstants;
+	
+	// bvh
+	vks::Buffer bvhNodeInfosBuffer;
+	vks::Buffer initNodeInfosBuffer;
+	vks::Buffer currNodeInfosBuffer;
+	vks::Buffer nextNodeInfosBuffer;
+	vks::Buffer sortedClusterIndicesBuffer; // Cluster indices sorted by BVH
+	vks::Buffer culledClusterIndicesBuffer; // Cluster indices after BVH culling
+	vks::Buffer culledClusterObjectIndicesBuffer;
 	
 	// 光栅化 为了存储rasterize，需要额外进行一个render pass
 	vks::RasterizeBuffer HWRasterizeBuffer, HWRVisBuffer, SWRasterizeBuffer, finalZBuffer, finalVisBuffer;
@@ -182,6 +201,6 @@ private:
 	// 常量
 	static constexpr int WORKGROUP_SIZE_X = 8;
 	static constexpr int WORKGROUP_SIZE_Y = 8;
-	static constexpr int DISPATCH_GROUP_SIZE = 64;
+	static constexpr int DISPATCH_GROUP_SIZE = 32;
 	static constexpr bool ENABLE_DEBUG_QUAD = false;
 };

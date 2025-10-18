@@ -25,6 +25,9 @@ namespace Nanite
 		float parentSurfaceArea = 0.0f;
 		glm::vec3 boundingSphereCenter;
 		float boundingSphereRadius;
+		
+		glm::vec3 parentBoundingSphereCenter;
+		float parentBoundingSphereRadius;
 
 		nlohmann::json toJson();
 		void fromJson(const nlohmann::json& data);

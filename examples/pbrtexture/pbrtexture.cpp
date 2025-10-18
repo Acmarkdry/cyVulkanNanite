@@ -133,6 +133,75 @@ void PBRTexture::setupDescriptors()
 	vks::vksTools::setPbrDescriptor(*this);
 }
 
+void PBRTexture::createBVHTraversalBuffers()
+{
+	// 使用 createStagingBuffer 辅助函数简化 staging buffer 创建流程
+	constexpr VkBufferUsageFlags storageUsage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	constexpr VkBufferUsageFlags storageTransferUsage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+	// 1. BVH Node Infos Buffer (需要从CPU上传数据)
+	vks::vksTools::createStagingBuffer(
+		*this, 0,
+		scene.bvhNodeInfos.size() * sizeof(Nanite::BVHNodeInfo),
+		scene.bvhNodeInfos.data(),
+		storageUsage,
+		bvhNodeInfosBuffer);
+
+	// 2. Init Node Infos Buffer (需要从CPU上传数据，同时作为Transfer源)
+	vks::vksTools::createStagingBuffer(
+		*this, 0,
+		scene.initNodeInfoIndices.size() * sizeof(uint32_t),
+		scene.initNodeInfoIndices.data(),
+		storageTransferUsage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		initNodeInfosBuffer);
+
+	// 3. Sorted Cluster Indices Buffer (需要从CPU上传数据)
+	vks::vksTools::createStagingBuffer(
+		*this, 0,
+		scene.sortedClusterIndices.size() * sizeof(uint32_t),
+		scene.sortedClusterIndices.data(),
+		storageUsage,
+		sortedClusterIndicesBuffer);
+
+	std::cout << "scene.maxDepthCounts: " << scene.maxDepthCounts << std::endl;
+
+	// 4. 仅GPU端使用的Buffer (无需staging，直接创建device local buffer)
+	const VkDeviceSize nodeInfoBufferSize = scene.maxDepthCounts * 2 * sizeof(uint32_t);
+
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		storageTransferUsage,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		nodeInfoBufferSize,
+		&currNodeInfosBuffer.buffer,
+		&currNodeInfosBuffer.memory,
+		nullptr));
+
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		storageTransferUsage,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		nodeInfoBufferSize,
+		&nextNodeInfosBuffer.buffer,
+		&nextNodeInfosBuffer.memory,
+		nullptr));
+
+	// 5. Culled Cluster Buffers
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		storageTransferUsage,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		(scene.maxClusterNum + 5) * sizeof(uint32_t), // reserve 5 for atomic counter
+		&culledClusterIndicesBuffer.buffer,
+		&culledClusterIndicesBuffer.memory,
+		nullptr));
+
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		storageUsage,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		scene.maxClusterNum * sizeof(uint32_t),
+		&culledClusterObjectIndicesBuffer.buffer,
+		&culledClusterObjectIndicesBuffer.memory,
+		nullptr));
+}
+
 VkBufferMemoryBarrier PBRTexture::createBufferBarrier(VkBuffer buffer, VkAccessFlags srcAccess, VkAccessFlags dstAccess)
 {
 	VkBufferMemoryBarrier barrier{};
@@ -310,6 +379,10 @@ void PBRTexture::createComputePipelines()
 	// merge
 	VkPushConstantRange mergePush{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(renderPushConstants)};
 	createComputePipeline("mergeRast.comp.spv", DescriptorType::mergeRast, mergeRastPipeline, &mergePush);
+	
+	// BVH Traversal
+	VkPushConstantRange bvhTraversalPush{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(BVHTraversalPushConstants)};
+	createComputePipeline("bvhtraversal.comp.spv", DescriptorType::bvhTraversal, bvhTraversalPipeline, &bvhTraversalPush);
 }
 
 void PBRTexture::setupRenderPass()
@@ -498,7 +571,8 @@ void PBRTexture::prepare()
 	generateBRDFLUT();
 	generateIrradianceCube();
 	generatePrefilteredCube();
-
+	
+	createBVHTraversalBuffers();
 	createCullingBuffers();
 	createErrorProjectionBuffers();
 	createHizBuffer();
@@ -536,8 +610,9 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	// Culling compute 
 	// 先进行一下HIZ布局转换
 	VkImageSubresourceRange hizRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, textures.hizBuffer.mipLevels, 0, 1};
-	auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, hizRange);
-	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	//auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, hizRange);
+	// vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	//
 	
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipeline);
 	
@@ -548,7 +623,7 @@ void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frame
 	vkCmdDispatch(cmdBuffer, (cullingPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
 
 	// 恢复HIZ布局
-	imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, hizRange);
+	auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, hizRange);
 	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
 
 	// Indirect and hw draw buffer barrier 
@@ -688,7 +763,8 @@ void PBRTexture::buildCommandBuffers()
 	{
 		renderPassBeginInfo.framebuffer = frameBuffers[i];
 		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
-
+		
+		recordBVHCommands(drawCmdBuffers[i], i);
 		recordComputeCommands(drawCmdBuffers[i], i);
 		recordHardwareRasterize(drawCmdBuffers[i], i, renderPassBeginInfo);
 		recordMerge(drawCmdBuffers[i], i);
@@ -784,28 +860,44 @@ void PBRTexture::render()
 
 	prepareFrame();
 
+	// 【修复】先等待上一帧 GPU 工作全部完成，再修改 GPU 会读取的 buffer
+	vkDeviceWaitIdle(device);
+
+	// 上一帧 GPU 已完成，现在可以安全重置间接绘制/SW光栅化的原子计数器
 	if (drawIndexedIndirectBuffer.mapped)
 	{
 		drawIndexedIndirect.indexCount = 0;
 		memcpy(drawIndexedIndirectBuffer.mapped, &drawIndexedIndirect, sizeof(vks::DrawIndexedIndirect));
 		drawIndexedIndirectBuffer.flush();
-		vkDeviceWaitIdle(device);
+		
+		uint32_t zero = 0;
+		memcpy(swNumVerticesBuffer.mapped, &zero, sizeof(uint32_t));
+		swNumVerticesBuffer.flush();
 	}
+
+	// 【修复】先将上一帧的 currView/currProj 保存为 lastView/lastProj（用于 HiZ occlusion culling reprojection）
+	// 注意：uboCullingMatrices.currView/currProj 保存的是上一帧写入的值，正好是"上一帧的矩阵"
+	uboCullingMatrices.lastView = uboCullingMatrices.currView;
+	uboCullingMatrices.lastProj = uboCullingMatrices.currProj;
 	
+	// 然后更新当前帧的 view/proj（用于视锥剔除和光栅化）
 	uboCullingMatrices.currView = camera.matrices.view;
 	uboCullingMatrices.currProj = camera.matrices.perspective;
 	memcpy(cullingUniformBuffer.mapped, &uboCullingMatrices, sizeof(vks::UBOCullingMatrices));
+	cullingUniformBuffer.flush();
+
+	// 【修复】同步更新 error projection 的 uniform buffer（确保与 culling 使用一致的矩阵）
+	uboErrorMatrices.view = camera.matrices.view;
+	uboErrorMatrices.proj = camera.matrices.perspective;
+	uboErrorMatrices.camRight = camera.getRight();
+	uboErrorMatrices.camUp = camera.getUp();
+	memcpy(errorUniformBuffer.mapped, &uboErrorMatrices, sizeof(vks::UBOErrorMatrices));
+	errorUniformBuffer.flush();
 
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
 	submitFrame();
-
-	// culling是永久更新的，所以每帧重新绘制
-	uboCullingMatrices.lastView = camera.matrices.view;
-	uboCullingMatrices.lastProj = camera.matrices.perspective;
-	memcpy(cullingUniformBuffer.mapped, &uboCullingMatrices, sizeof(vks::UBOCullingMatrices));
-	cullingUniformBuffer.flush();
 
 	if (camera.updated)
 	{
@@ -818,8 +910,21 @@ void PBRTexture::viewChanged()
 	updateUniformBuffers();
 }
 
-void PBRTexture::OnUpdateUIOverlay(vks::UIOverlay* overlay)
-{
+void PBRTexture::OnUpdateUIOverlay(vks::UIOverlay* overlay){
+
+		std::string s1 = "Num triangles without nanite:" + std::to_string(scene.sceneIndicesCount / 3);
+		overlay->text(s1.c_str());
+		memcpy(&drawIndexedIndirect, drawIndexedIndirectBuffer.mapped, sizeof(vks::DrawIndexedIndirect));
+		
+		uint32_t swrVertSize;
+		memcpy(&swrVertSize, swNumVerticesBuffer.mapped, sizeof(uint32_t));
+		std::string s2 = "Num triangles hw raserized:" + std::to_string(drawIndexedIndirect.indexCount / 3);
+		overlay->text(s2.c_str());
+		std::string s3 = "Num triangles sw raserized:" + std::to_string(swrVertSize / 3);
+		overlay->text(s3.c_str());
+		std::string s4 = "Num triangles raserized in total:" + std::to_string((swrVertSize + drawIndexedIndirect.indexCount) / 3);
+		overlay->text(s4.c_str());
+
 	if (overlay->header("Settings"))
 	{
 		bool bNeedRebuildCommandBuffer = false;
@@ -1022,10 +1127,10 @@ void PBRTexture::setupDepthStencil()
 void PBRTexture::createCullingBuffers()
 {
 	// 创建剔除用的buffer
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount*sizeof(uint32_t), &hwRIndicesBuffer.buffer, &hwRIndicesBuffer.memory, nullptr));
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount/3*sizeof(glm::uvec3), &hwRIDBuffer.buffer, &hwRIDBuffer.memory, nullptr));
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount*sizeof(uint32_t), &swRIndicesBuffer.buffer, &swRIndicesBuffer.memory, nullptr));
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.visibleIndicesCount/3*sizeof(glm::uvec3), &swRIDBuffer.buffer, &swRIDBuffer.memory, nullptr));	
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.sceneIndicesCount/8*sizeof(uint32_t), &hwRIndicesBuffer.buffer, &hwRIndicesBuffer.memory, nullptr));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.sceneIndicesCount/8/3*sizeof(glm::uvec3), &hwRIDBuffer.buffer, &hwRIDBuffer.memory, nullptr));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.sceneIndicesCount/8*sizeof(uint32_t), &swRIndicesBuffer.buffer, &swRIndicesBuffer.memory, nullptr));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.sceneIndicesCount/8/3*sizeof(glm::uvec3), &swRIDBuffer.buffer, &swRIDBuffer.memory, nullptr));	
 	
 	for (auto& clusterInfo : scene.clusterInfo)
 	{
@@ -1074,7 +1179,7 @@ void PBRTexture::createCullingBuffers()
 
 void PBRTexture::createErrorProjectionBuffers()
 {
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.errorInfo.size()*sizeof(glm::vec2), &projectedErrorBuffer.buffer, &projectedErrorBuffer.memory, nullptr))
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, scene.maxClusterNum*sizeof(glm::vec2), &projectedErrorBuffer.buffer, &projectedErrorBuffer.memory, nullptr))
 
 	for (auto& errorInfo : scene.errorInfo)
 	{
@@ -1103,14 +1208,85 @@ void PBRTexture::initLogSystem()
 	// 如何使用log系统
 }
 
+void PBRTexture::recordBVHCommands(VkCommandBuffer cmdBuffer, size_t frameIndex)
+{
+	auto descMgr = VulkanDescriptorManager::getManager();
+	
+	// 常用 pipeline stage 常量
+	constexpr VkPipelineStageFlags computeStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+	constexpr VkPipelineStageFlags transferStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+	// 1. HIZ布局转换: General -> ShaderReadOnly
+	VkImageSubresourceRange hizRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, textures.hizBuffer.mipLevels, 0, 1};
+	auto imgBarrier = createImageBarrier(
+		textures.hizBuffer.image,
+		VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+		hizRange);
+	vkCmdPipelineBarrier(cmdBuffer, computeStage, computeStage, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	
+	// 2. 初始化当前节点buffer: 从initNodeInfosBuffer拷贝到currNodeInfosBuffer
+	VkBufferCopy copyRegion{0, 0, scene.initNodeInfoIndices.size() * sizeof(uint32_t)};
+	vkCmdCopyBuffer(cmdBuffer, initNodeInfosBuffer.buffer, currNodeInfosBuffer.buffer, 1, &copyRegion);
+	
+	auto barrier = createBufferBarrier(currNodeInfosBuffer.buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, transferStage, computeStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+	// 3. 清零culledClusterIndicesBuffer前5个uint32作为原子计数器
+	vkCmdFillBuffer(cmdBuffer, culledClusterIndicesBuffer.buffer, 0, 5 * sizeof(uint32_t), 0);
+	barrier = createBufferBarrier(culledClusterIndicesBuffer.buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, transferStage, computeStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+	// 4. BVH层级遍历循环
+	// 绑定pipeline和设置push constants (循环外执行一次)
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, bvhTraversalPipeline.pipeline);
+	bvhTraversalPushConstants.threshold = thresholdInt / thresholdIntDiv;
+	bvhTraversalPushConstants.screenSize = glm::vec2(width, height);
+	vkCmdPushConstants(cmdBuffer, bvhTraversalPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(BVHTraversalPushConstants), &bvhTraversalPushConstants);
+
+	for (size_t j = 0; j < scene.depthCounts.size(); j++)
+	{
+		// 根据奇偶层级选择ping-pong buffer
+		VkBuffer dstBuffer = (j & 1) ? currNodeInfosBuffer.buffer : nextNodeInfosBuffer.buffer;
+		VkBuffer srcBuffer = (j & 1) ? nextNodeInfosBuffer.buffer : currNodeInfosBuffer.buffer;
+		
+		// 清零目标buffer计数器
+		vkCmdFillBuffer(cmdBuffer, dstBuffer, 0, sizeof(uint32_t), 0);
+		barrier = createBufferBarrier(dstBuffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+		vkCmdPipelineBarrier(cmdBuffer, transferStage, computeStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+		
+		// 执行BVH遍历compute shader
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, bvhTraversalPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::bvhTraversal, j & 1), 0, nullptr);
+		vkCmdDispatch(cmdBuffer, (scene.depthCounts[j] + 31) / 32, 1, 1);
+		
+		// 同步: 目标buffer写完 -> 下一层读取
+		barrier = createBufferBarrier(dstBuffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+		vkCmdPipelineBarrier(cmdBuffer, computeStage, computeStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	
+		// 同步: 源buffer读完 -> 下一层作为目标buffer清零
+		barrier = createBufferBarrier(srcBuffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+		vkCmdPipelineBarrier(cmdBuffer, computeStage, transferStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	}
+	
+	// 5. 最终同步: BVH遍历结果 -> 后续culling阶段读取
+	barrier = createBufferBarrier(culledClusterIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, computeStage, computeStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+
+	barrier = createBufferBarrier(culledClusterObjectIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, computeStage, computeStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+
+	barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, computeStage, computeStage, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+}
+
 void PBRTexture::createNaniteScene()
 {
 	scene.naniteMeshes.emplace_back(naniteMesh);
 	modelMats.clear();
 
-	for (int i = 0; i <= 3; i++)
+	for (int i = -1; i <= 1; i++)
 	{
-		for (int j = 0; j <= 3; j++)
+		for (int j = -1; j <= 1; j++)
 		{
 			auto modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(i * 3, 1.2f, j * 3));
 			auto instance = Nanite::NaniteInstance(&naniteMesh, modelMat);
@@ -1119,8 +1295,7 @@ void PBRTexture::createNaniteScene()
 		}
 	}
 
-	scene.createVertexIndexBuffer(*this);
-	scene.createClusterInfos();
+	scene.createNaniteSceneInfo(*this);
 }
 
 

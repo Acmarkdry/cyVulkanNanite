@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <stack>
 #include <unordered_set>
 
 #include "Cluster.h"
@@ -9,6 +10,7 @@
 #include "../utils.h"
 #include "../vksTools.h"
 #include "metis.h"
+#include "NaniteBVH.h"
 
 namespace Nanite
 {
@@ -161,6 +163,13 @@ namespace Nanite
 					lastLOD.clusters[idx].boundingSphereRadius * 2.0f);
 			}
 		}
+		
+		for (auto & childClusters: lastLOD.clusters)
+		{
+			auto firstParent = childClusters.parentClusterIndices[0];
+			childClusters.parentBoundingSphereCenter = clusters[firstParent].boundingSphereCenter;
+			childClusters.parentBoundingSphereRadius= clusters[firstParent].boundingSphereRadius;
+		}
 
 		// 计算LOD误差
 		for (auto& cluster : clusters)
@@ -180,7 +189,7 @@ namespace Nanite
 			NaniteAssert(cluster.qemError >= 0, "cluster.qemError < 0");
 			
 			const auto parentCount = lastLOD.clusters[cluster.childClusterIndices[0]].parentClusterIndices.size();
-			cluster.lodError = cluster.qemError / (parentCount + 1) + cluster.childLODErrorMax;
+        cluster.lodError = cluster.qemError / (lastLOD.clusters[cluster.childClusterIndices[0]].parentClusterIndices.size()+1) + cluster.childLODErrorMax;
 			cluster.normalizedlodError = std::max(maxChildNormalizedError + 1e-9, 
 				cluster.lodError / (cluster.boundingSphereRadius * cluster.boundingSphereRadius));
 
@@ -525,7 +534,6 @@ namespace Nanite
 
 		if (clusterGroupNum == 1)
 		{
-			std::iota(clusterGroupIndex.begin(), clusterGroupIndex.end(), 0);
 			std::fill(clusterGroupIndex.begin(), clusterGroupIndex.end(), 0);
 			for (size_t i = 0; i < static_cast<size_t>(clusterMetisGraph.nvtxs); ++i)
 				clusterGroups[0].clusterIndices.emplace_back(i);
@@ -648,4 +656,375 @@ namespace Nanite
 		vks::vksTools::createStagingBuffer(variableLink, 0, vertexBufferSize, vertexBuffer.data(), 
 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
 	}
+
+	void NaniteLodMesh::createBVH()
+	{
+		buildBVH();
+		updateBVHError();
+	}
+
+	void NaniteLodMesh::getClusterGroupAABB(ClusterGroup& clusterGroup)
+	{
+		glm::vec3 min = glm::vec3(FLT_MAX);
+		glm::vec3 max = glm::vec3(-FLT_MAX);
+		for (NaniteTriMesh::FaceIter face_it = mesh.faces_begin(); face_it != mesh.faces_end(); ++face_it) {
+			NaniteTriMesh::FaceHandle fh = *face_it;
+			auto clusterIdx = triangleClusterIndex[fh.idx()];
+			auto clusterGroupIdx = clusterGroupIndex[clusterIdx];
+
+			glm::vec3 pMinWorld, pMaxWorld;
+			glm::vec3 p0, p1, p2;
+			NaniteTriMesh::FaceVertexIter fv_it = mesh.fv_iter(fh);
+
+			// Get the positions of the three vertices
+			auto point0 = mesh.point(*fv_it);
+			++fv_it;
+			auto point1 = mesh.point(*fv_it);
+			++fv_it;
+			auto point2 = mesh.point(*fv_it);
+
+			p0[0] = point0[0];
+			p0[1] = point0[1];
+			p0[2] = point0[2];
+
+			p1[0] = point1[0];
+			p1[1] = point1[1];
+			p1[2] = point1[2];
+
+			p2[0] = point2[0];
+			p2[1] = point2[1];
+			p2[2] = point2[2];
+
+			p0 = glm::vec3(glm::vec4(p0, 1.0f));
+			p1 = glm::vec3(glm::vec4(p1, 1.0f));
+			p2 = glm::vec3(glm::vec4(p2, 1.0f));
+
+			getTriangleAABB(p0, p1, p2, pMinWorld, pMaxWorld);
+
+			clusterGroups[clusterGroupIdx].mergeAABB(pMinWorld, pMaxWorld);
+		}
+	}
+
+	void NaniteLodMesh::buildBVH()
+{
+    // Build BVH after mesh decimation (because we need the qem error here)
+    
+    // For LOD 0, all clusters have qem error -1.
+    //      gen cluster -> gen cluster group -> build bvh
+    // For LOD N(N>0), all clusters have qem error > 0.
+    //      A. lodN-1 decimation -> re-cluster within old cluster group -> build bvh (use old cluster group, because we need to assure that parentError are the same) -> re-grouping 
+    //      OR
+    //      B. lodN-1 decimation -> re-cluster within old cluster group -> re-grouping -> build bvh (use new cluster group because this can be easier implemented)
+    // We will use B for implementation simplicity
+    
+    // build aabb for each cluster group
+    // for each recursion
+    //  merge aabb
+    //  get longest axis of merged aabb
+    //  sort cluster group by aabb's longest axis
+    //  split by longest axis
+    //  
+
+    //std::vector<uint32_t> originalClusterGroupIndex;
+    std::vector<uint32_t> clusterGroupIndex;
+    for (int i = 0; i < clusterGroups.size(); ++i)
+    {
+        //originalClusterGroupIndex.push_back(i);
+        clusterGroupIndex.push_back(i);
+        auto& clusterGroup = clusterGroups[i];
+        getClusterGroupAABB(clusterGroup);
+        //std::cout << "clusterGroupIndex: " << i << 
+        //    " clusterGroup.pMin: " << clusterGroup.pMin.x << " " << clusterGroup.pMin.y << " " << clusterGroup.pMin.z <<
+        //    " clusterGroup.pMax: " << clusterGroup.pMax.x << " " << clusterGroup.pMax.y << " " << clusterGroup.pMax.z <<
+        //    std::endl;
+    }
+
+    std::stack<std::shared_ptr<NaniteBVHNode>> nodeStack;
+    rootBVHNode = std::make_shared<NaniteBVHNode>();
+    rootBVHNode->start = 0;
+    rootBVHNode->end = clusterGroups.size();
+    rootBVHNode->nodeStatus = NaniteBVHNodeStatus::NODE;
+    rootBVHNode->lodLevel = lodLevel;
+    nodeStack.push(rootBVHNode);
+
+    std::set<int> clusterIndexSet;
+    for (auto & clusterGroup: clusterGroups)
+    {
+        for (auto & clusterIndex: clusterGroup.clusterIndices)
+        {
+            NaniteAssert(clusterIndexSet.find(clusterIndex) == clusterIndexSet.end(), "Repeated cluster index in different cluster group!");
+            clusterIndexSet.insert(clusterIndex);
+        }
+    }
+    while (!nodeStack.empty()) 
+    {
+        auto & currNode = nodeStack.top();
+        currNode->lodLevel = lodLevel;
+        for (size_t i = 0; i < CLUSTER_GROUP_MAX_SIZE; i++)
+        {
+            currNode->clusterIndices[i] = -1;
+        }
+        std::string indent(currNode->depth, '\t');
+        nodeStack.pop();
+        if (currNode->nodeStatus == NaniteBVHNodeStatus::LEAF) { // Leaf node, store a cluster-group-sized clusters
+            //std::cout << indent << "Leaf Node" << std::endl;
+            auto& clusterGroup = clusterGroups[currNode->start];
+            //currNode->clusterIndices = clusterGroup.clusterIndices;
+            
+            // Init clusterIndices
+            NaniteAssert(clusterGroup.clusterIndices.size() <= CLUSTER_GROUP_MAX_SIZE, "too many clusterIndices");
+            for (size_t i = 0; i < clusterGroup.clusterIndices.size(); i++)
+            {
+                currNode->clusterIndices[i] = clusterGroup.clusterIndices[i];
+            }
+            currNode->pMin = clusterGroup.pMin;
+            currNode->pMax = clusterGroup.pMax;
+
+            for (auto clusterIndex: currNode->clusterIndices)
+            {
+                // TODO: Make sure this part uses the right error
+                //std::cout <<indent << "clusterIndex: " << clusterIndex << " clusters.size(): " << clusters.size() << std::endl;
+                NaniteAssert(clusterIndex < int(clusters.size()), "clusterIndex overflow");
+                if (clusterIndex >= 0) {
+                    NaniteAssert(clusterIndexSet.find(clusterIndex) != clusterIndexSet.end(), "clusterIndex not found in clusterIndexSet, means it's repeated!");
+                    clusterIndexSet.erase(clusterIndex);
+                    currNode->normalizedlodError    = std::max(currNode->normalizedlodError, clusters[clusterIndex].normalizedlodError);
+                    currNode->parentNormalizedError = std::max(currNode->parentNormalizedError, clusters[clusterIndex].parentNormalizedError);
+                }
+            }
+        }
+        else { // Non-leaf nodes
+            //std::cout << indent << "Non-leaf Node" << std::endl;
+            // Merge AABB
+			glm::vec3 pMin = glm::vec3(FLT_MAX);
+			glm::vec3 pMax = glm::vec3(-FLT_MAX);
+            for (int i = currNode->start; i < currNode->end; ++i)
+            {
+				auto& clusterGroup = clusterGroups[i];
+				pMin = glm::min(pMin, clusterGroup.pMin);
+				pMax = glm::max(pMax, clusterGroup.pMax);
+			}
+			currNode->pMin = pMin;
+			currNode->pMax = pMax;
+            //std::cout << indent << "pMin: " << currNode->pMin.x << " " << currNode->pMin.y << " " << currNode->pMin.z <<
+            //    "\n" << indent << "pMax: " << currNode->pMax.x << " " << currNode->pMax.y << " " << currNode->pMax.z <<
+            //    std::endl;
+            //std::cout << indent << "currNode->start: " << currNode->start << " currNode->end: " << currNode->end << std::endl;
+            if (currNode->end - currNode->start < 4) { // One level higher than leaf node, stop partitioning from now on
+                currNode->nodeStatus = NaniteBVHNodeStatus::NODE;
+                //std::cout << indent << "stop partitioning" << std::endl;
+                for (int i = currNode->start; i < currNode->end; ++i)
+                {
+                    //std::cout << indent << "leaf: " << i << std::endl;
+                    std::shared_ptr<NaniteBVHNode> leafNode(new NaniteBVHNode());
+                    leafNode->nodeStatus = NaniteBVHNodeStatus::LEAF;
+                    leafNode->start = i;
+                    leafNode->end = i + 1;
+                    leafNode->depth = currNode->depth + 1;
+                    currNode->children.push_back(leafNode);
+                }
+                for (auto & child: currNode->children)
+                {
+                    nodeStack.push(child);
+                }
+            }
+            else { // Start partitioning
+
+                // TODO: Should get 2 longest axis and sort by them to split and push 4 children (BVH4)
+			    // Get longest axis
+			    glm::vec3 diff = pMax - pMin;
+			    int longestAxis = 0;
+			    if (diff[1] > diff[longestAxis]) longestAxis = 1;
+			    if (diff[2] > diff[longestAxis]) longestAxis = 2;
+
+			    // Sort by longest axis
+                std::sort(clusterGroupIndex.begin() + currNode->start, clusterGroupIndex.begin() + currNode->end, [&](uint32_t a, uint32_t b) {
+				    return clusterGroups[a].pMin[longestAxis] < clusterGroups[b].pMin[longestAxis];
+				    });
+
+			    // Split by longest axis
+			    int mid = (currNode->start + currNode->end) / 2;
+
+                // Get second longest axis
+                int axis2 = (longestAxis + 1) % 3; 
+                int axis3 = (longestAxis + 2) % 3;
+                int secondLongestAxis = diff[axis2] > diff[axis3] ? axis2 : axis3;
+
+                // Sort by second longest axis
+                std::sort(clusterGroupIndex.begin() + currNode->start, clusterGroupIndex.begin() + mid, [&](uint32_t a, uint32_t b) {
+                    return clusterGroups[a].pMin[secondLongestAxis] < clusterGroups[b].pMin[secondLongestAxis];
+					});
+                int mid2 = (currNode->start + mid) / 2;
+                
+                std::sort(clusterGroupIndex.begin() + mid, clusterGroupIndex.begin() + currNode->end, [&](uint32_t a, uint32_t b) {
+                    return clusterGroups[a].pMin[secondLongestAxis] < clusterGroups[b].pMin[secondLongestAxis];
+                    });
+                int mid3 = (mid + currNode->end) / 2;
+
+			    std::shared_ptr<NaniteBVHNode > node11(new NaniteBVHNode());
+			    node11->start = currNode->start;
+			    node11->end = mid2;
+                node11->depth = currNode->depth + 1;
+                node11->nodeStatus = NODE;
+
+                std::shared_ptr<NaniteBVHNode> node12(new NaniteBVHNode());
+                node12->start = mid2;
+                node12->end = mid;
+                node12->depth = currNode->depth + 1;
+                node12->nodeStatus = NODE;
+
+                std::shared_ptr<NaniteBVHNode> node21(new NaniteBVHNode());
+                node21->start = mid;
+                node21->end = mid3;
+                node21->depth = currNode->depth + 1;
+                node21->nodeStatus = NODE;
+
+			    std::shared_ptr<NaniteBVHNode > node22(new NaniteBVHNode());
+                node22->start = mid3;
+                node22->end = currNode->end;
+                node22->depth = currNode->depth + 1;
+                node22->nodeStatus = NODE;
+
+                currNode->children.push_back(node11);
+                currNode->children.push_back(node12);
+                currNode->children.push_back(node21);
+                currNode->children.push_back(node22);
+                nodeStack.push(node11);
+                nodeStack.push(node12);
+                nodeStack.push(node21);
+                nodeStack.push(node22);
+            }
+        }
+    }
+
+    NaniteAssert(clusterIndexSet.size() == 0, "clusterIndexSet should be empty after building BVH");
+    // TODO: Need another pass to update the error of each node
+
+}
+
+	void NaniteLodMesh::updateBVHError()
+	{
+		float currNodeError = -FLT_MAX;
+		glm::vec4 currNodeParentBoundingSphere = glm::vec4(0.0f);
+		updateBVHErrorCore(rootBVHNode, currNodeError, currNodeParentBoundingSphere);
+		//ASSERT(0, "Stop");
+	}
+	
+	void NaniteLodMesh::updateBVHErrorCore(std::shared_ptr<NaniteBVHNode> currNode, float & currNodeError, glm::vec4 & currNodeParentBoundingSphere)
+{
+
+    if (currNode->nodeStatus == LEAF) {
+        //currNode->clusterIndices = clusterGroup.clusterIndices;
+
+        // Init clusterIndices
+        NaniteAssert(currNode->clusterIndices.size() <= CLUSTER_GROUP_MAX_SIZE, "too many clusterIndices");
+        glm::vec3 currNodeParentBoundingSphereCenter(0.0f);
+        float currNodeParentBoundingSphereRadius = 0.0f;
+        int validClusterNum = 0;
+        double maxError = -FLT_MAX;
+        std::vector<glm::vec3> childNodeParentBoundingSphereCenters;
+        std::vector<float> childNodeParentBoundingSphereRadius;
+        for (size_t i = 0; i < CLUSTER_GROUP_MAX_SIZE; i++)
+        {
+            auto clusterIndex = currNode->clusterIndices[i];
+            if (clusterIndex >= 0) {
+                validClusterNum++;
+                currNodeParentBoundingSphereCenter += clusters[clusterIndex].parentBoundingSphereCenter;
+                childNodeParentBoundingSphereCenters.push_back(clusters[clusterIndex].parentBoundingSphereCenter);
+                currNodeParentBoundingSphereRadius = glm::max(currNodeParentBoundingSphereRadius, clusters[clusterIndex].parentBoundingSphereRadius);
+                childNodeParentBoundingSphereRadius.push_back(clusters[clusterIndex].parentBoundingSphereRadius);
+                maxError = std::max(maxError, clusters[clusterIndex].parentNormalizedError);
+            }
+        }
+        //currNodeParentBoundingSphereCenter /= validClusterNum;
+        float largestDiameter= -FLT_MAX;
+        glm::vec4 sphere1(0), sphere2(0);
+        for (size_t i = 0; i < childNodeParentBoundingSphereCenters.size(); i++)
+        {
+            //std::cout << childNodeParentBoundingSphereCenters[i].x << " " << childNodeParentBoundingSphereCenters[i].y << " " << childNodeParentBoundingSphereCenters[i].z << std::endl;
+            for (size_t j = 0; j < childNodeParentBoundingSphereCenters.size(); j++)
+            {
+                auto distance = glm::distance(childNodeParentBoundingSphereCenters[i], childNodeParentBoundingSphereCenters[j]);
+                auto diameter = distance + childNodeParentBoundingSphereRadius[i] + childNodeParentBoundingSphereRadius[j];
+                if (diameter > largestDiameter)
+                {
+                    sphere1 = glm::vec4(childNodeParentBoundingSphereCenters[i], childNodeParentBoundingSphereRadius[i]);
+                    sphere2 = glm::vec4(childNodeParentBoundingSphereCenters[j], childNodeParentBoundingSphereRadius[j]);
+                    largestDiameter = diameter;
+                }
+
+            }
+        }
+        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON){ // Two spheres have the same center
+            currNodeParentBoundingSphereCenter = glm::vec3(sphere1);
+			currNodeParentBoundingSphereRadius = glm::max(sphere1.w, sphere2.w);
+        }
+        else {
+            auto sphere1ToSphere2 = glm::normalize(glm::vec3(sphere2) - glm::vec3(sphere1));
+            currNodeParentBoundingSphereCenter = 
+                (glm::vec3(sphere1) + sphere1.w * sphere1ToSphere2 + glm::vec3(sphere2) + sphere2.w * -sphere1ToSphere2) * 0.5f;
+            currNodeParentBoundingSphereRadius = largestDiameter * 0.5f;
+        }
+        currNodeError = maxError;
+        
+        currNodeParentBoundingSphere = glm::vec4(currNodeParentBoundingSphereCenter, currNodeParentBoundingSphereRadius);
+        currNode->parentNormalizedError = currNodeError;
+        currNode->parentBoundingSphere = currNodeParentBoundingSphere;
+    }
+    else {
+        glm::vec3 currNodeParentBoundingSphereCenter(0.0f);
+        float currNodeParentBoundingSphereRadius = 0.0f;
+        std::vector<glm::vec3> childNodeParentBoundingSphereCenters;
+        std::vector<float> childNodeParentBoundingSphereRadius;
+        for (size_t i = 0; i < currNode->children.size(); i++)
+        {
+            auto& child = currNode->children[i];
+            float childError = 0.0f;
+            glm::vec4 childBoundingSphere = glm::vec4(0.0f);
+            updateBVHErrorCore(child, childError, childBoundingSphere);
+            currNodeError = std::max(currNodeError, childError);
+            childNodeParentBoundingSphereCenters.push_back(glm::vec3(childBoundingSphere));
+            childNodeParentBoundingSphereRadius.push_back(childBoundingSphere.w);
+            //// TODO: CHECK this part
+            //currNodeParentBoundingSphereRadius = glm::max(currNodeParentBoundingSphere[3], childBoundingSphere[3]);
+            //currNodeParentBoundingSphereCenter += glm::vec3(childBoundingSphere);
+        }
+        //currNodeParentBoundingSphereCenter /= currNode->children.size();
+        float largestDiameter = -FLT_MAX;
+        glm::vec4 sphere1(0), sphere2(0);
+        for (size_t i = 0; i < childNodeParentBoundingSphereCenters.size(); i++)
+        {
+            //std::cout << childNodeParentBoundingSphereCenters[i].x << " " << childNodeParentBoundingSphereCenters[i].y << " " << childNodeParentBoundingSphereCenters[i].z << std::endl;
+            for (size_t j = 0; j < childNodeParentBoundingSphereCenters.size(); j++)
+            {
+                auto distance = glm::distance(childNodeParentBoundingSphereCenters[i], childNodeParentBoundingSphereCenters[j]);
+                auto diameter = distance + childNodeParentBoundingSphereRadius[i] + childNodeParentBoundingSphereRadius[j];
+                if (diameter > largestDiameter)
+                {
+                    sphere1 = glm::vec4(childNodeParentBoundingSphereCenters[i], childNodeParentBoundingSphereRadius[i]);
+                    sphere2 = glm::vec4(childNodeParentBoundingSphereCenters[j], childNodeParentBoundingSphereRadius[j]);
+                    largestDiameter = diameter;
+                }
+
+            }
+        }
+        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // Two spheres have the same center
+            currNodeParentBoundingSphereCenter = glm::vec3(sphere1);
+            currNodeParentBoundingSphereRadius = glm::max(sphere1.w, sphere2.w);
+        }
+        else {
+            auto sphere1ToSphere2 = glm::normalize(glm::vec3(sphere2) - glm::vec3(sphere1));
+            currNodeParentBoundingSphereCenter =
+                (glm::vec3(sphere1) + sphere1.w * sphere1ToSphere2 + glm::vec3(sphere2) + sphere2.w * -sphere1ToSphere2) * 0.5f;
+            currNodeParentBoundingSphereRadius = largestDiameter * 0.5f;
+        }
+        currNodeParentBoundingSphere = glm::vec4(currNodeParentBoundingSphereCenter, currNodeParentBoundingSphereRadius);
+        currNode->parentBoundingSphere = currNodeParentBoundingSphere;
+        currNode->parentNormalizedError = currNodeError;
+    }
+
+    std::string indent(currNode->depth, '\t');
+    std::cout << indent << "currNodeError: " << currNodeError << " boundingSphere: " << currNodeParentBoundingSphere.x << " " << currNodeParentBoundingSphere.y << " " << currNodeParentBoundingSphere.z << " " << currNodeParentBoundingSphere.w << std::endl;
+}
+	
 }

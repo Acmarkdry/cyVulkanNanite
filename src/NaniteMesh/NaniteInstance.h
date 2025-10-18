@@ -9,6 +9,7 @@ class VulkanExampleBase;
 
 namespace Nanite
 {
+	class NaniteBVHNode;
 	class NaniteLodMesh;
 	class ClusterInfo;
 	class NaniteMesh;
@@ -34,7 +35,9 @@ namespace Nanite
 
 		void initBufferForNaniteLODs();
 		void buildClusterInfo();
-
+		std::shared_ptr<NaniteBVHNode> rootNode;
+		void reconstructBVH();
+		
 	private:
 		[[nodiscard]] glm::vec3 transformPoint(const glm::vec3& point) const;
 		[[nodiscard]] glm::vec3 openMeshPointToGlm(const NaniteTriMesh::Point& point) const;
