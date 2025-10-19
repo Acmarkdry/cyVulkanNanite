@@ -356,9 +356,10 @@ vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 		descMgr->writeToSet(DescriptorType::swRast, 0, 6, &uniformBuffers.scene.descriptor);
 		
 		// clear image
+		pbrTexture.swIndirectDispatchBuffer.setupDescriptor();
 		descMgr->writeToSet(DescriptorType::clearImage, 0, 0, &SWRImageInfo);
 		descMgr->writeToSet(DescriptorType::clearImage, 0, 1, &pbrTexture.swNumVerticesBuffer.descriptor);
-		descMgr->writeToSet(DescriptorType::clearImage, 0, 2, &pbrTexture.swRIndicesBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::clearImage, 0, 2, &pbrTexture.swIndirectDispatchBuffer.descriptor);
 		
 		// merge rasterize
 		VkDescriptorImageInfo HWRImageInfo = {};

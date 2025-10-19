@@ -1,0 +1,148 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+
+#include "data_structures.glsl"
+#include "common_culling.glsl"
+
+#define WORKGROUP_SIZE 32
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+//=============================================================================
+// Buffer Bindings
+//=============================================================================
+
+layout(std430, binding = 0) buffer BVHNodeInfoBuffer {
+    BVHNodeInfo bvhNodeInfos[];
+};
+
+layout(std430, binding = 1) buffer readonly currBVHNodes {
+    uint currBvhNodeInfoSize;
+    uint currBVHNodeInfoIndices[];
+};
+
+layout(std430, binding = 2) buffer writeonly nextBVHNodes {
+    uint nextBvhNodeInfoSize;
+    uint nextBVHNodeInfoIndices[];
+};
+
+layout(std430, binding = 3) buffer clusterIndexBuffer {
+    uint clusterSize;
+    uint frustumCullingNum;
+    uint occulusionCullingNum;
+    uint errorCullingNum;
+    uint clusters[];
+};
+
+layout(binding = 4) uniform UBOMats {
+    mat4 model;     // unused
+    mat4 lastView;
+    mat4 lastProj;
+    mat4 currView;
+    mat4 currProj;
+} ubomats;
+
+layout(binding = 5) uniform sampler2D lastHZB;
+
+layout(binding = 6) uniform UBOMats2 {
+    mat4 view;
+    mat4 proj;
+    vec3 camUp;
+    vec3 camRight;
+} ubomats2;
+
+layout(binding = 7) buffer clusterObjectIndexBuffer {
+    uint clusterObjectIndices[];
+};
+
+layout(binding = 8) buffer SortedClusterIndicesBuffer {
+    uint sortedClusterIndices[];
+};
+
+layout(push_constant) uniform PushConstants {
+    vec2 screenSize;
+    float threshold;
+} pcs;
+
+//=============================================================================
+// BVH 误差剔除
+//=============================================================================
+
+// 如果节点的屏幕空间误差 ≤ 阈值则返回 true（应被剔除，即该 LOD 足够精细）
+bool errorCulling(BVHNodeInfo b)
+{
+    mat4 vp = ubomats2.proj * ubomats2.view;
+    float err = b.errorWorld.y * getScreenBoundRadiusSq(
+        b.errorRP.xyz, b.errorRP.w,
+        vp, ubomats2.camUp, ubomats2.camRight, pcs.screenSize);
+    return err <= pcs.threshold;
+}
+
+//=============================================================================
+// 叶节点输出
+//=============================================================================
+
+// 将叶节点包含的所有 cluster 索引写入全局输出缓冲区
+void emitLeafClusters(BVHNodeInfo nodeInfo)
+{
+    uint leafClusterSize  = nodeInfo.end - nodeInfo.start;
+    uint clusterStartIndex = atomicAdd(clusterSize, leafClusterSize);
+    for (uint i = 0u; i < leafClusterSize; i++)
+    {
+        clusters[clusterStartIndex + i]              = sortedClusterIndices[nodeInfo.start + i];
+        clusterObjectIndices[clusterStartIndex + i]  = nodeInfo.objectId;
+    }
+}
+
+//=============================================================================
+// 内部节点：推入子节点
+//=============================================================================
+
+void pushChildrenToNextLevel(BVHNodeInfo nodeInfo)
+{
+    uint childSize = 0u;
+    for (int i = 0; i < 4; i++)
+    {
+        if (nodeInfo.childrenNodeIndices[i] == -1) break;
+        childSize++;
+    }
+    uint nextStart = atomicAdd(nextBvhNodeInfoSize, childSize);
+    for (uint i = 0u; i < childSize; i++)
+    {
+        nextBVHNodeInfoIndices[nextStart + i] = uint(nodeInfo.childrenNodeIndices[i]);
+    }
+}
+
+//=============================================================================
+// Main
+//=============================================================================
+
+void main()
+{
+    if (gl_GlobalInvocationID.x >= currBvhNodeInfoSize) return;
+
+    BVHNodeInfo nodeInfo = bvhNodeInfos[currBVHNodeInfoIndices[gl_GlobalInvocationID.x]];
+
+    // 预计算 VP 矩阵
+    mat4 currVP = ubomats.currProj * ubomats.currView;
+    mat4 lastVP = ubomats.lastProj * ubomats.lastView;
+
+    // 视锥体剔除
+    if (frustumCulling(nodeInfo.pMin, nodeInfo.pMax, currVP)) return;
+
+    // 遮挡剔除 (基于上一帧 HZB)
+    if (occlusionCulling(nodeInfo.pMin, nodeInfo.pMax, lastVP, lastHZB)) return;
+
+    // 误差剔除 (LOD 选择)
+    if (errorCulling(nodeInfo)) return;
+
+    // 叶节点 → 输出 cluster 索引；内部节点 → 推入下一层级
+    bool isLeaf = (nodeInfo.end - nodeInfo.start) != 0u;
+    if (isLeaf)
+    {
+        emitLeafClusters(nodeInfo);
+    }
+    else
+    {
+        pushChildrenToNextLevel(nodeInfo);
+    }
+}

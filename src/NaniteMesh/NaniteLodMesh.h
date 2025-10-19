@@ -106,7 +106,7 @@ namespace Nanite
 		void flattenBVH();
 
 		std::vector<NaniteBVHNodeInfo> flattenedBVHNodes;
-		std::vector<uint32_t> levelCounts; // Store the counts of nodes in each level
+		std::vector<uint32_t> levelCounts; // 存储每一层的节点数量
 
 	private:
 		static constexpr idx_t METIS_RANDOM_SEED = 42;
@@ -200,11 +200,11 @@ namespace OpenMesh::Decimater
 		if (!quadrics_.is_valid())
 			Base::mesh().add_property(quadrics_);
 
-		// Clear quadrics
+		// 清除二次误差矩阵
 		for (auto v_it = Base::mesh().vertices_begin(); v_it != Base::mesh().vertices_end(); ++v_it)
 			Base::mesh().property(quadrics_, *v_it).clear();
 
-		// Calculate (normal weighted) quadric
+		// 计算法线加权的二次误差矩阵
 		for (auto f_it = Base::mesh().faces_begin(); f_it != Base::mesh().faces_end(); ++f_it)
 		{
 			auto fv_it = Base::mesh().fv_iter(*f_it);

@@ -707,36 +707,16 @@ namespace Nanite
 
 	void NaniteLodMesh::buildBVH()
 {
-    // Build BVH after mesh decimation (because we need the qem error here)
-    
-    // For LOD 0, all clusters have qem error -1.
-    //      gen cluster -> gen cluster group -> build bvh
-    // For LOD N(N>0), all clusters have qem error > 0.
-    //      A. lodN-1 decimation -> re-cluster within old cluster group -> build bvh (use old cluster group, because we need to assure that parentError are the same) -> re-grouping 
-    //      OR
-    //      B. lodN-1 decimation -> re-cluster within old cluster group -> re-grouping -> build bvh (use new cluster group because this can be easier implemented)
-    // We will use B for implementation simplicity
-    
-    // build aabb for each cluster group
-    // for each recursion
-    //  merge aabb
-    //  get longest axis of merged aabb
-    //  sort cluster group by aabb's longest axis
-    //  split by longest axis
-    //  
+    // 在网格简化后构建BVH（因为此时需要QEM误差）
+    // LOD 0：所有 cluster 的 QEM 误差为 -1，流程：生成 cluster -> 生成 cluster group -> 构建 BVH
+    // LOD N(N>0)：所有 cluster 的 QEM 误差 > 0，流程：简化 -> 在旧 cluster group 内重新聚类 -> 重新分组 -> 构建 BVH
 
-    //std::vector<uint32_t> originalClusterGroupIndex;
     std::vector<uint32_t> clusterGroupIndex;
     for (int i = 0; i < clusterGroups.size(); ++i)
     {
-        //originalClusterGroupIndex.push_back(i);
         clusterGroupIndex.push_back(i);
         auto& clusterGroup = clusterGroups[i];
         getClusterGroupAABB(clusterGroup);
-        //std::cout << "clusterGroupIndex: " << i << 
-        //    " clusterGroup.pMin: " << clusterGroup.pMin.x << " " << clusterGroup.pMin.y << " " << clusterGroup.pMin.z <<
-        //    " clusterGroup.pMax: " << clusterGroup.pMax.x << " " << clusterGroup.pMax.y << " " << clusterGroup.pMax.z <<
-        //    std::endl;
     }
 
     std::stack<std::shared_ptr<NaniteBVHNode>> nodeStack;
@@ -766,12 +746,9 @@ namespace Nanite
         }
         std::string indent(currNode->depth, '\t');
         nodeStack.pop();
-        if (currNode->nodeStatus == NaniteBVHNodeStatus::LEAF) { // Leaf node, store a cluster-group-sized clusters
-            //std::cout << indent << "Leaf Node" << std::endl;
+        if (currNode->nodeStatus == NaniteBVHNodeStatus::LEAF) { // 叶节点，存储 cluster group 大小的 cluster 集合
             auto& clusterGroup = clusterGroups[currNode->start];
-            //currNode->clusterIndices = clusterGroup.clusterIndices;
-            
-            // Init clusterIndices
+            // 初始化 clusterIndices
             NaniteAssert(clusterGroup.clusterIndices.size() <= CLUSTER_GROUP_MAX_SIZE, "too many clusterIndices");
             for (size_t i = 0; i < clusterGroup.clusterIndices.size(); i++)
             {
@@ -782,8 +759,6 @@ namespace Nanite
 
             for (auto clusterIndex: currNode->clusterIndices)
             {
-                // TODO: Make sure this part uses the right error
-                //std::cout <<indent << "clusterIndex: " << clusterIndex << " clusters.size(): " << clusters.size() << std::endl;
                 NaniteAssert(clusterIndex < int(clusters.size()), "clusterIndex overflow");
                 if (clusterIndex >= 0) {
                     NaniteAssert(clusterIndexSet.find(clusterIndex) != clusterIndexSet.end(), "clusterIndex not found in clusterIndexSet, means it's repeated!");
@@ -793,9 +768,8 @@ namespace Nanite
                 }
             }
         }
-        else { // Non-leaf nodes
-            //std::cout << indent << "Non-leaf Node" << std::endl;
-            // Merge AABB
+        else { // 非叶节点
+            // 合并AABB
 			glm::vec3 pMin = glm::vec3(FLT_MAX);
 			glm::vec3 pMax = glm::vec3(-FLT_MAX);
             for (int i = currNode->start; i < currNode->end; ++i)
@@ -806,16 +780,10 @@ namespace Nanite
 			}
 			currNode->pMin = pMin;
 			currNode->pMax = pMax;
-            //std::cout << indent << "pMin: " << currNode->pMin.x << " " << currNode->pMin.y << " " << currNode->pMin.z <<
-            //    "\n" << indent << "pMax: " << currNode->pMax.x << " " << currNode->pMax.y << " " << currNode->pMax.z <<
-            //    std::endl;
-            //std::cout << indent << "currNode->start: " << currNode->start << " currNode->end: " << currNode->end << std::endl;
-            if (currNode->end - currNode->start < 4) { // One level higher than leaf node, stop partitioning from now on
+            if (currNode->end - currNode->start < 4) { // 比叶节点高一级，停止分割
                 currNode->nodeStatus = NaniteBVHNodeStatus::NODE;
-                //std::cout << indent << "stop partitioning" << std::endl;
                 for (int i = currNode->start; i < currNode->end; ++i)
                 {
-                    //std::cout << indent << "leaf: " << i << std::endl;
                     std::shared_ptr<NaniteBVHNode> leafNode(new NaniteBVHNode());
                     leafNode->nodeStatus = NaniteBVHNodeStatus::LEAF;
                     leafNode->start = i;
@@ -828,29 +796,27 @@ namespace Nanite
                     nodeStack.push(child);
                 }
             }
-            else { // Start partitioning
-
-                // TODO: Should get 2 longest axis and sort by them to split and push 4 children (BVH4)
-			    // Get longest axis
+            else { // 开始分割
+			    // 获取最长轴
 			    glm::vec3 diff = pMax - pMin;
 			    int longestAxis = 0;
 			    if (diff[1] > diff[longestAxis]) longestAxis = 1;
 			    if (diff[2] > diff[longestAxis]) longestAxis = 2;
 
-			    // Sort by longest axis
+			    // 按最长轴排序
                 std::sort(clusterGroupIndex.begin() + currNode->start, clusterGroupIndex.begin() + currNode->end, [&](uint32_t a, uint32_t b) {
 				    return clusterGroups[a].pMin[longestAxis] < clusterGroups[b].pMin[longestAxis];
 				    });
 
-			    // Split by longest axis
+			    // 沿最长轴分割
 			    int mid = (currNode->start + currNode->end) / 2;
 
-                // Get second longest axis
+                // 获取第二长轴
                 int axis2 = (longestAxis + 1) % 3; 
                 int axis3 = (longestAxis + 2) % 3;
                 int secondLongestAxis = diff[axis2] > diff[axis3] ? axis2 : axis3;
 
-                // Sort by second longest axis
+                // 按第二长轴排序
                 std::sort(clusterGroupIndex.begin() + currNode->start, clusterGroupIndex.begin() + mid, [&](uint32_t a, uint32_t b) {
                     return clusterGroups[a].pMin[secondLongestAxis] < clusterGroups[b].pMin[secondLongestAxis];
 					});
@@ -898,7 +864,6 @@ namespace Nanite
     }
 
     NaniteAssert(clusterIndexSet.size() == 0, "clusterIndexSet should be empty after building BVH");
-    // TODO: Need another pass to update the error of each node
 
 }
 
@@ -907,16 +872,12 @@ namespace Nanite
 		float currNodeError = -FLT_MAX;
 		glm::vec4 currNodeParentBoundingSphere = glm::vec4(0.0f);
 		updateBVHErrorCore(rootBVHNode, currNodeError, currNodeParentBoundingSphere);
-		//ASSERT(0, "Stop");
 	}
 	
 	void NaniteLodMesh::updateBVHErrorCore(std::shared_ptr<NaniteBVHNode> currNode, float & currNodeError, glm::vec4 & currNodeParentBoundingSphere)
 {
 
     if (currNode->nodeStatus == LEAF) {
-        //currNode->clusterIndices = clusterGroup.clusterIndices;
-
-        // Init clusterIndices
         NaniteAssert(currNode->clusterIndices.size() <= CLUSTER_GROUP_MAX_SIZE, "too many clusterIndices");
         glm::vec3 currNodeParentBoundingSphereCenter(0.0f);
         float currNodeParentBoundingSphereRadius = 0.0f;
@@ -936,12 +897,10 @@ namespace Nanite
                 maxError = std::max(maxError, clusters[clusterIndex].parentNormalizedError);
             }
         }
-        //currNodeParentBoundingSphereCenter /= validClusterNum;
         float largestDiameter= -FLT_MAX;
         glm::vec4 sphere1(0), sphere2(0);
         for (size_t i = 0; i < childNodeParentBoundingSphereCenters.size(); i++)
         {
-            //std::cout << childNodeParentBoundingSphereCenters[i].x << " " << childNodeParentBoundingSphereCenters[i].y << " " << childNodeParentBoundingSphereCenters[i].z << std::endl;
             for (size_t j = 0; j < childNodeParentBoundingSphereCenters.size(); j++)
             {
                 auto distance = glm::distance(childNodeParentBoundingSphereCenters[i], childNodeParentBoundingSphereCenters[j]);
@@ -952,10 +911,9 @@ namespace Nanite
                     sphere2 = glm::vec4(childNodeParentBoundingSphereCenters[j], childNodeParentBoundingSphereRadius[j]);
                     largestDiameter = diameter;
                 }
-
             }
         }
-        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON){ // Two spheres have the same center
+        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // 两个球心重合
             currNodeParentBoundingSphereCenter = glm::vec3(sphere1);
 			currNodeParentBoundingSphereRadius = glm::max(sphere1.w, sphere2.w);
         }
@@ -985,16 +943,11 @@ namespace Nanite
             currNodeError = std::max(currNodeError, childError);
             childNodeParentBoundingSphereCenters.push_back(glm::vec3(childBoundingSphere));
             childNodeParentBoundingSphereRadius.push_back(childBoundingSphere.w);
-            //// TODO: CHECK this part
-            //currNodeParentBoundingSphereRadius = glm::max(currNodeParentBoundingSphere[3], childBoundingSphere[3]);
-            //currNodeParentBoundingSphereCenter += glm::vec3(childBoundingSphere);
         }
-        //currNodeParentBoundingSphereCenter /= currNode->children.size();
         float largestDiameter = -FLT_MAX;
         glm::vec4 sphere1(0), sphere2(0);
         for (size_t i = 0; i < childNodeParentBoundingSphereCenters.size(); i++)
         {
-            //std::cout << childNodeParentBoundingSphereCenters[i].x << " " << childNodeParentBoundingSphereCenters[i].y << " " << childNodeParentBoundingSphereCenters[i].z << std::endl;
             for (size_t j = 0; j < childNodeParentBoundingSphereCenters.size(); j++)
             {
                 auto distance = glm::distance(childNodeParentBoundingSphereCenters[i], childNodeParentBoundingSphereCenters[j]);
@@ -1005,10 +958,9 @@ namespace Nanite
                     sphere2 = glm::vec4(childNodeParentBoundingSphereCenters[j], childNodeParentBoundingSphereRadius[j]);
                     largestDiameter = diameter;
                 }
-
             }
         }
-        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // Two spheres have the same center
+        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // 两个球心重合
             currNodeParentBoundingSphereCenter = glm::vec3(sphere1);
             currNodeParentBoundingSphereRadius = glm::max(sphere1.w, sphere2.w);
         }

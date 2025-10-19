@@ -41,14 +41,14 @@ namespace Nanite
 		void vkglTFPrimitiveToOpenMesh(NaniteTriMesh& mymesh, const vkglTF::Primitive& prim);
 		const tinygltf::Model* tinyglTFModel;
 		const tinygltf::Mesh* tinyglTFMesh;
-		void loadglTFModel(const tinygltf::Model& model); // TODO
-		void glTFMeshToOpenMesh(NaniteTriMesh& mymesh, const tinygltf::Mesh& mesh); // TODO
+		void loadglTFModel(const tinygltf::Model& model);
+		void glTFMeshToOpenMesh(NaniteTriMesh& mymesh, const tinygltf::Mesh& mesh);
 
-		/*暂时用dag代替*/
+		/* 暂时用DAG代替 */
 		std::vector<ClusterNode> flattenedClusterNodes;
 		void flattenDAG();
 
-		/************ Flatten BVH *************/
+		// 展平BVH
 		std::shared_ptr<NaniteBVHNode> virtualBVHRootNode;
 		std::vector<NaniteBVHNodeInfo> flattenedBVHNodeInfos;
 		void flattenBVH();
@@ -72,7 +72,7 @@ namespace Nanite
 		std::vector<vkglTF::Vertex> vertexBuffer;
 		std::vector<vkglTF::Primitive> primitives;
 		
-		std::vector<uint32_t> clusterIndexOffset; // This offset is caused by different LOD
+		std::vector<uint32_t> clusterIndexOffset; // 不同LOD层级导致的 cluster 索引偏移
 
 		const char* filepath = nullptr;
 		const char* cache_time_key = "cache_time";

@@ -116,7 +116,7 @@ namespace Nanite
 			}
 			meshes[i].createBVH();
 		}
-		// Linearize BVH
+		// 展平BVH
 		flattenBVH();
 	}
 	
@@ -136,9 +136,7 @@ namespace Nanite
 
 	std::vector<uint32_t> depthCounts;
 	uint32_t maxLevels = 0;
-	// Do a two-pass tree bfs
-	//      First pass update flattened index
-	//      Second pass update children index
+	// 两趟BFS遍历：第一趟更新展平索引，第二趟更新子节点索引
 	while (!nodeQueue.empty())
 	{
 		auto currNode = nodeQueue.front();
@@ -146,8 +144,6 @@ namespace Nanite
 		std::string indent(currNode->depth, '\t');
 		NaniteAssert(currNode->nodeStatus != NaniteBVHNodeStatus::INVALID, "Invalid node!");
 
-		//std::cout << indent << (currNode->nodeStatus == NaniteBVHNodeStatus::LEAF ? "Leaf " : "Non-leaf ") << currNode->depth << " " << currNode->index << std::endl;
-		//NaniteAssert(currNode->depth <= depthCounts.size(), "currNode->level should never be greater than size of depthCounts, check traversal implementation");
 		if (currNode->depth == depthCounts.size())
 		{
 			depthCounts.push_back(1);
@@ -158,35 +154,15 @@ namespace Nanite
 		}
 		index++;
 		nodeQueue.pop();
-		std::cout << indent << "currNode->index: " << currNode->index 
-			<< std::endl << indent << "currNode->parentBoundingSphereCenter: " << currNode->parentBoundingSphere.x << " " << currNode->parentBoundingSphere.y << " " << currNode->parentBoundingSphere.z
-			<< std::endl << indent << "currNode->parentBoundingSphereRadius: " << currNode->parentBoundingSphere.w
-			<< std::endl;
-		if (currNode->nodeStatus == NaniteBVHNodeStatus::LEAF)
+		if (currNode->nodeStatus != NaniteBVHNodeStatus::LEAF)
 		{
-			//std::cout << "Leaf node: " <<
-			//    "pMin: " << currNode->pMin.x << " " << currNode->pMin.y << " " << currNode->pMin.z <<
-			//    "pMax: " << currNode->pMax.x << " " << currNode->pMax.y << " " << currNode->pMax.z <<
-			//    std::endl;
-		}
-		else
-		{
-			//std::cout << "Non-leaf node: "
-			//    "pMin: " << currNode->pMin.x << " " << currNode->pMin.y << " " << currNode->pMin.z <<
-			//    "pMax: " << currNode->pMax.x << " " << currNode->pMax.y << " " << currNode->pMax.z <<
-			//    std::endl;
 			for (auto child : currNode->children)
 			{
-				//std::cout << indent << child->depth << std::endl;
 				nodeQueue.push(child);
 			}
 		}
 	}
-	flattenedBVHNodeInfos.resize(index);  // `index` now is the size of nodes
-	//for (size_t i = 0; i < depthCounts.size(); i++)
-	//{
-	//    std::cout << "i " << i << " depthCounts[i]: " << depthCounts[i] << std::endl;
-	//}
+	flattenedBVHNodeInfos.resize(index); // index 即为节点总数
 
 	uint32_t totalClusterNum = 0;
 	for (size_t i = 0; i < meshes.size(); i++)
@@ -202,10 +178,8 @@ namespace Nanite
 	nodeQueue.push(virtualBVHRootNode);
 	while (!nodeQueue.empty())
 	{
-
 		auto currNode = nodeQueue.front();
 		NaniteBVHNodeInfo nodeInfo;
-		//std::cout << currNode->children.size() << std::endl;
 		NaniteAssert(currNode->nodeStatus == VIRTUAL_NODE || currNode->children.size() <= 4, "size of non-virtual nodes' children should never be over 4");
 		nodeInfo.children.resize(currNode->children.size());
 		for (int i = 0; i < currNode->children.size(); ++i)
@@ -244,23 +218,9 @@ namespace Nanite
 				clusterIndexSet.erase(currNode->clusterIndices[i] + clusterIndexOffset[currNode->lodLevel]);
 			}
 			nodeInfo.end = sortedClusterIndices.size();
-			std::cout << nodeInfo.start << " " << nodeInfo.end << std::endl;
-			//for (size_t i = 0; i < CLUSTER_GROUP_MAX_SIZE; i++)
-			//{
-			//	std::cout << std::string(currNode->depth, '\t') << "nodeInfo: " << nodeInfo.clusterIndices[i] << std::endl;
-			//	std::cout << std::string(currNode->depth, '\t') << "currNode: " << currNode->clusterIndices[i] << std::endl;
-			//}
-			//std::cout << "Leaf node: " <<
-			//	"pMin: " << currNode->pMin.x << " " << currNode->pMin.y << " " << currNode->pMin.z <<
-			//	"pMax: " << currNode->pMax.x << " " << currNode->pMax.y << " " << currNode->pMax.z <<
-			//	std::endl;
 		}
 		else
 		{
-			//std::cout << "Non-leaf node: "
-			//	"pMin: " << currNode->pMin.x << " " << currNode->pMin.y << " " << currNode->pMin.z <<
-			//	"pMax: " << currNode->pMax.x << " " << currNode->pMax.y << " " << currNode->pMax.z <<
-			//	std::endl;
 			for (auto child : currNode->children)
 			{
 				nodeQueue.push(child);
@@ -296,7 +256,7 @@ namespace Nanite
 		{
 			auto& mesh = meshes[i];
 			std::string output_filename = std::string(filepath) + "LOD_" + std::to_string(i) + ".obj";
-			// Export the mesh to the specified file
+			// 导出网格到文件
 			if (!OpenMesh::IO::write_mesh(mesh.mesh, output_filename, OpenMesh::IO::Options::VertexNormal | OpenMesh::IO::Options::VertexTexCoord))
 			{
 				std::cerr << "Error exporting mesh to " << output_filename << std::endl;
@@ -318,7 +278,7 @@ namespace Nanite
 		result[cache_time_key] = std::time(nullptr);
 		result["lodNums"] = lodNums;
 
-		// Save the JSON data to a file
+		// 保存JSON数据到文件
 		std::ofstream file(std::string(filepath) + "nanite_info.json");
 		if (file.is_open())
 		{
@@ -358,14 +318,6 @@ namespace Nanite
 		for (int i = 0; i < flattenedBVHNodeCounts; ++i) {
 			auto& nodeInfo = flattenedBVHNodeInfos[i];
 			nodeInfo.fromJson(loadedJson["flattenedBVHNodeInfos"][i]);
-			std::string indent(nodeInfo.depth, '\t');
-			//if (nodeInfo.nodeStatus == LEAF) {
-			//	std::cout << "Index: " << nodeInfo.index << std::endl;
-			//	for (size_t i = 0; i < nodeInfo.clusterIndices.size(); i++)
-			//	{
-			//		std::cout << '\t' << nodeInfo.clusterIndices[i] << std::endl;
-			//	}
-			//}
 			float percentage = static_cast<float>(i + 1) / flattenedBVHNodeCounts * 100.0;
 			std::cout << "\r";
 			std::cout << "[Loading] BVH Info: " << std::fixed << std::setw(6) << std::setprecision(2) << percentage << "%";
@@ -401,7 +353,7 @@ namespace Nanite
 
 	void NaniteMesh::buildClusterInfo()
 	{
-		// Init Clusters
+	// 初始化 Cluster 信息
 	size_t totalClusterNum = 0;
 	for (int i = 0; i < meshes.size(); i++)
 	{
@@ -425,7 +377,7 @@ namespace Nanite
 			glm::vec3 p0, p1, p2;
 			NaniteTriMesh::FaceVertexIter fv_it = mesh.fv_iter(fh);
 
-			// Get the positions of the three vertices
+			// 获取三角形三个顶点的位置
 			auto point0 = mesh.point(*fv_it);
 			++fv_it;
 			auto point1 = mesh.point(*fv_it);
@@ -461,12 +413,10 @@ namespace Nanite
 			if (meshes[i].triangleClusterIndex[currTriangleIndex] != currClusterIdx)
 			{
 				if (currClusterIdx != -1) {
-					//std::cout << "Cluster " << currClusterIdx << " end at " << j << std::endl;
 					clusterInfo[currClusterIdx + currClusterNum].triangleIndicesEnd = j + currTriangleNum;
 				}
 				currClusterIdx = meshes[i].triangleClusterIndex[currTriangleIndex];
 				clusterInfo[currClusterIdx + currClusterNum].triangleIndicesStart = j + currTriangleNum;
-				//std::cout << "Cluster " << currClusterIdx << " start at " << j << std::endl;
 			}
 		}
 		clusterInfo[currClusterIdx + currClusterNum].triangleIndicesEnd = meshes[i].triangleIndicesSortedByClusterIdx.size() + currTriangleNum;
@@ -478,38 +428,25 @@ namespace Nanite
 			NaniteAssert(parentError > cluster.normalizedlodError, "Parent error is not greater than children's");
 			errorInfo[j + currClusterNum].errorWorld = glm::vec2(cluster.normalizedlodError, parentError);
 			glm::vec3 worldCenter = glm::vec3(glm::vec4(cluster.boundingSphereCenter, 1.0));
-			//TODO: handle arbitary scaling
 			float worldRadius = glm::length(glm::vec4(glm::vec3(cluster.boundingSphereRadius, 0, 0), 0.0));
-			//std::cout << cluster.triangleIndices.size() << std::endl;
-			//std::cout << cluster.boundingSphereRadius << " " << worldRadius << std::endl;
 			NaniteAssert(cluster.triangleIndices.size() <= CLUSTER_MAX_SIZE, "cluster.triangleIndices.size() is over thresold");
 			NaniteAssert(cluster.boundingSphereRadius > 0 || cluster.triangleIndices.size() == 0, "boundingSphereRadius <= 0");
 			NaniteAssert(worldRadius > 0 || cluster.triangleIndices.size() == 0, "worldRadius <= 0");
 			errorInfo[j + currClusterNum].centerR = glm::vec4(worldCenter, worldRadius);
 			float parentBoundingRadius = 0;
 			glm::vec3 parentCenter = glm::vec3(0);
-			if (i == meshes.size() - 1)//last level of lod, no parent
+			if (i == meshes.size() - 1) // 最后一级LOD，无父节点
 			{
 				parentBoundingRadius = worldRadius * 1.5f;
 				parentCenter = cluster.boundingSphereCenter;
 			}
-			/*else
-			{
-				maxParentBoundingRadius = referenceMesh->meshes[i + 1].clusters[cluster.parentClusterIndices[0]].boundingSphereRadius;
-				parentCenter = referenceMesh->meshes[i + 1].clusters[cluster.parentClusterIndices[0]].boundingSphereCenter;
-			}*/
-			else for (size_t k : cluster.parentClusterIndices)//get max parent bounding sphere size
+			else for (size_t k : cluster.parentClusterIndices) // 获取最大父节点包围球尺寸
 			{
 				parentBoundingRadius = std::max(parentBoundingRadius, meshes[i + 1].clusters[k].boundingSphereRadius);
 				parentCenter += meshes[i + 1].clusters[k].boundingSphereCenter;
-				//parentCenter = cluster.boundingSphereCenter;
 				break;
 			}
-			//parentCenter /= i == meshes.size() - 1 ? 1.0 : cluster.parentClusterIndices.size();
 			glm::vec3 parentWorldCenter = glm::vec3(glm::vec4(parentCenter, 1.0));
-			//TODO: handle arbitary scaling
-
-			//NaniteAssert(parentWorldRadius > 0 && parentWorldRadius > worldRadius);
 			errorInfo[j + currClusterNum].centerRP = glm::vec4(parentWorldCenter, parentBoundingRadius);
 		}
 		currClusterNum += meshes[i].clusterNum;
@@ -537,7 +474,7 @@ namespace Nanite
 		if (useCache)
 		{
 			std::ifstream inputFile(cachePath + "nanite_info.json");
-			// TODO: Check cache time to see if cache needs to be rebuilt
+			// TODO: 检查缓存时间戳以判断是否需要重新生成
 			if (inputFile.is_open())
 			{
 				deserialize(cachePath);
@@ -555,7 +492,6 @@ namespace Nanite
 			generateNaniteInfo();
 			serialize(cachePath);
 			std::cout << cachePath << "nanite_info.json" << " generated" << std::endl;
-			//checkDeserializationResult(cachePath);
 		}
 	}
 
@@ -592,26 +528,23 @@ namespace Nanite
 		{
 			auto& mesh = meshes[i];
 			auto& debugMesh = debugMeshes[i];
-			TEST(mesh.clusters.size() == debugMesh.clusters.size(), "cluster size match");
+			NaniteAssert(mesh.clusters.size() == debugMesh.clusters.size(), "cluster size match");
 			for (size_t clusterIdx = 0; clusterIdx < mesh.clusters.size(); clusterIdx++)
 			{
 				const auto& cluster = mesh.clusters[clusterIdx];
 				const auto& debugCluster = debugMesh.clusters[clusterIdx];
-				TEST(cluster.parentNormalizedError == debugCluster.parentNormalizedError, "parentNormalizedError match");
-				TEST(cluster.lodError == debugCluster.lodError, "lodError match");
-				TEST(cluster.boundingSphereCenter == debugCluster.boundingSphereCenter, "boundingSphereCenter match");
-				TEST(cluster.boundingSphereRadius == debugCluster.boundingSphereRadius, "boundingSphereRadius match");
+				NaniteAssert(cluster.parentNormalizedError == debugCluster.parentNormalizedError, "parentNormalizedError match");
+				NaniteAssert(cluster.lodError == debugCluster.lodError, "lodError match");
+				NaniteAssert(cluster.boundingSphereCenter == debugCluster.boundingSphereCenter, "boundingSphereCenter match");
+				NaniteAssert(cluster.boundingSphereRadius == debugCluster.boundingSphereRadius, "boundingSphereRadius match");
 			}
-			TEST(mesh.mesh.n_faces() == debugMesh.mesh.n_faces(), "face size match");
-			TEST(mesh.mesh.n_vertices() == debugMesh.mesh.n_vertices(), "vertex size match");
+			NaniteAssert(mesh.mesh.n_faces() == debugMesh.mesh.n_faces(), "face size match");
+			NaniteAssert(mesh.mesh.n_vertices() == debugMesh.mesh.n_vertices(), "vertex size match");
 			for (const auto& vhandle : mesh.mesh.vertices())
 			{
 				auto debugVhandle = debugMesh.mesh.vertex_handle(vhandle.idx());
-				//std::cout << "mesh normal: " << mesh.mesh.normal(vhandle)[0] << " " << mesh.mesh.normal(vhandle)[1] << " " << mesh.mesh.normal(vhandle)[2] << std::endl;
-				//std::cout << "debug normal: " << debugMesh.mesh.normal(debugVhandle)[0] << " " << debugMesh.mesh.normal(debugVhandle)[1] << " " << debugMesh.mesh.normal(debugVhandle)[2] << std::endl;
-				TEST((mesh.mesh.point(vhandle) - debugMesh.mesh.point(debugVhandle)).length() < 1e-5f, "vertex position match");
-				TEST((mesh.mesh.normal(vhandle) - debugMesh.mesh.normal(debugVhandle)).length() < 1e-5f, "vertex normal match");
-				//NaniteAssert((mesh.mesh.texcoord2D(vhandle) - debugMesh.mesh.texcoord2D(debugVhandle)).length() < 1e-5f, "vertex texcoord not match");
+				NaniteAssert((mesh.mesh.point(vhandle) - debugMesh.mesh.point(debugVhandle)).length() < 1e-5f, "vertex position match");
+				NaniteAssert((mesh.mesh.normal(vhandle) - debugMesh.mesh.normal(debugVhandle)).length() < 1e-5f, "vertex normal match");
 			}
 		}
 	}

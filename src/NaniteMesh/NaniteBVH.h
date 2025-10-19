@@ -8,17 +8,13 @@ namespace Nanite
 {
 enum NaniteBVHNodeStatus 
 {
-	INVALID, // Default initialization
-	VIRTUAL_NODE, // All nodes that do not have a bounding box, only for implementation convenience
-	NODE, // All valid nodes
-	LEAF  // All nodes that actually stores cluster indices
+	INVALID,      // 默认初始化状态
+	VIRTUAL_NODE, // 没有包围盒的虚拟节点，仅用于实现便利
+	NODE,         // 所有有效的非叶节点
+	LEAF          // 存储了 cluster 索引的叶节点
 };
 
-/*
-	Stores the **pointers** to all children nodes
-	Tree structure
-*/
-
+// 存储所有子节点的指针，树形结构
 struct NaniteBVHNode
 {
 	NaniteBVHNode():
@@ -32,11 +28,11 @@ struct NaniteBVHNode
 		end(-1),
 		depth(0)
 		{
-			objectIdx = -1; // Only useful in instancing
+			objectIdx = -1;  // 仅在实例化时使用
 			lodLevel = -1;
-			for (size_t i = 0; i < CLUSTER_GROUP_MAX_SIZE; i++) clusterIndices[i] = -1; // The non-default initialization
+			for (size_t i = 0; i < CLUSTER_GROUP_MAX_SIZE; i++) clusterIndices[i] = -1;
 		}
-	std::vector<std::shared_ptr<NaniteBVHNode>> children; // should be a fixed size
+	std::vector<std::shared_ptr<NaniteBVHNode>> children;
 	double normalizedlodError = -FLT_MAX;
 	double parentNormalizedError = -FLT_MAX;
 	glm::vec4 parentBoundingSphere;
@@ -48,20 +44,15 @@ struct NaniteBVHNode
 	uint32_t end = -1;
 	uint32_t depth = 0;
 	
-	// Only leaf node will have `clusterIndices` filled
-	//std::vector<uint32_t> clusterIndices; 
-	std::array<int, CLUSTER_GROUP_MAX_SIZE> clusterIndices; // should try to NaniteAssert index overflow
+	// 仅叶节点会填充 clusterIndices
+	std::array<int, CLUSTER_GROUP_MAX_SIZE> clusterIndices;
 	
 	int lodLevel = -1; 
-	int objectIdx = -1; // Only useful in instancing
-	int meshIdx = -1; // Only useful in instancing
+	int objectIdx = -1;  // 仅在实例化时使用
+	int meshIdx = -1;    // 仅在实例化时使用
 };
 
-/*
-	Stores the **indices** to all children nodes
-	Array structure
-*/
-
+// 存储所有子节点的索引，数组结构（用于展平后的BVH）
 struct NaniteBVHNodeInfo
 {
 	double normalizedlodError = -FLT_MAX;
@@ -71,8 +62,7 @@ struct NaniteBVHNodeInfo
 	glm::vec3 pMin = glm::vec3(FLT_MAX);
 	glm::vec3 pMax = glm::vec3(-FLT_MAX);
 	std::vector<int> children;
-	//glm::ivec4 children = glm::ivec4(-1);
-	std::array<int, CLUSTER_GROUP_MAX_SIZE> clusterIndices; // should try to NaniteAssert index overflow
+	std::array<int, CLUSTER_GROUP_MAX_SIZE> clusterIndices;
 	int start = -1;
 	int end = -1;
 	NaniteBVHNodeStatus nodeStatus = NaniteBVHNodeStatus::INVALID;

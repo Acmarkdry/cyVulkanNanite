@@ -1,22 +1,30 @@
+/*
+ * error.comp
+ * 逐 Cluster 屏幕空间误差计算着色器 — Nanite 风格渲染管线
+ *
+ * 将每个 cluster 的世界空间误差投影到屏幕空间，
+ * 输出 (selfError, parentError) 用于后续 LOD 选择剔除
+ */
+
 #version 450
+#extension GL_GOOGLE_include_directive : enable
+
+#include "data_structures.glsl"
+#include "common_culling.glsl"
 
 #define WORKGROUP_SIZE 32
-
 layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
-struct ErrorInfo
-{
-    vec2 errorWorld;//node error and parent error in world
-    vec4 centerR;
-    vec4 centerRP;
-};
+//=============================================================================
+// Buffer Bindings
+//=============================================================================
 
 layout(std430, set = 0, binding = 0) buffer readonly WorldError {
-   ErrorInfo idata[ ];
+    ErrorInfo idata[];
 };
 
 layout(std430, set = 0, binding = 1) buffer ClusterError {
-   vec2 odata[ ];
+    vec2 odata[];
 };
 
 layout(set = 0, binding = 2) uniform UBOMats {
@@ -26,7 +34,7 @@ layout(set = 0, binding = 2) uniform UBOMats {
     vec3 camRight;
 } ubomats;
 
-layout(set = 0, binding = 3) buffer ClusterIndices{
+layout(set = 0, binding = 3) buffer ClusterIndices {
     uint culledClusterSize;
     uint frustumCullingNum;
     uint occulusionCullingNum;
@@ -34,70 +42,44 @@ layout(set = 0, binding = 3) buffer ClusterIndices{
     uint culledClusterIndices[];
 } culledClusters;
 
-layout(set = 0, binding = 4) buffer clusterObjectIndexBuffer{
+layout(set = 0, binding = 4) buffer clusterObjectIndexBuffer {
     uint clusterObjectIndices[];
 };
 
-layout(set = 0, binding = 5) buffer readonly ModelMatIn{
-	mat4 inModelMats[];
+layout(set = 0, binding = 5) buffer readonly ModelMatIn {
+    mat4 inModelMats[];
 };
 
 layout(push_constant) uniform PushConstants {
-    int numClusters;
+    int  numClusters;
     vec2 screenSize;
 } pcs;
 
-float getScreenBoundRadiusSq(vec3 center, float R)
-{
-    //TODO: get a better error estimation
-    vec4 c = ubomats.proj*ubomats.view*vec4(center,1);
-    c.xy/=c.w;
-    c.xy=c.xy*0.5+0.5;
-    vec4 p0 = ubomats.proj*ubomats.view*vec4(R*ubomats.camUp+center,1);
-    p0.xy/=p0.w;
-    p0.xy=p0.xy*0.5+0.5;
-    vec4 p1 = ubomats.proj*ubomats.view*vec4(R*ubomats.camRight+center,1);
-    p1.xy/=p1.w;
-    p1.xy=p1.xy*0.5+0.5;
-    vec2 v0 = (p0.xy-c.xy)*pcs.screenSize;
-    vec2 v1 = (p1.xy-c.xy)*pcs.screenSize;
-    return max(dot(v0,v0),dot(v1,v1));
-}
+//=============================================================================
+// Main
+//=============================================================================
 
 void main()
 {
-    //uint index = gl_GlobalInvocationID.x;
-    //if(index >= pcs.numClusters) return;
     if (gl_GlobalInvocationID.x >= culledClusters.culledClusterSize) return;
+
     uint clusterIndex = culledClusters.culledClusterIndices[gl_GlobalInvocationID.x];
-    uint objectId = clusterObjectIndices[gl_GlobalInvocationID.x];
+    uint objectId     = clusterObjectIndices[gl_GlobalInvocationID.x];
+
     ErrorInfo error = idata[clusterIndex];
-    vec3 center;
-    float R;
-    
-    //error.centerR.xyz = (inModelMats[objectId] * vec4(error.centerR.xyz,1)).xyz;
-    //error.centerRP.xyz = (inModelMats[objectId] * vec4(error.centerRP.xyz,1)).xyz;
+    mat4 vp = ubomats.proj * ubomats.view;
 
+    // 节点自身误差 → 屏幕空间
+    vec3  centerSelf = (inModelMats[objectId] * vec4(error.centerR.xyz, 1.0)).xyz;
+    float radiusSelf = length(inModelMats[objectId] * vec4(error.centerR.w, 0.0, 0.0, 0.0));
+    odata[gl_GlobalInvocationID.x].x = error.errorWorld.x *
+        getScreenBoundRadiusSq(centerSelf, radiusSelf,
+                               vp, ubomats.camUp, ubomats.camRight, pcs.screenSize);
 
-    center = (inModelMats[objectId] * vec4(error.centerR.xyz,1)).xyz;
-    R = length(inModelMats[objectId] * vec4(error.centerR.w,0,0,0));
-
-    odata[gl_GlobalInvocationID.x].x = error.errorWorld.x * getScreenBoundRadiusSq(center,R);
-    
-    center = (inModelMats[objectId] * vec4(error.centerRP.xyz,1)).xyz;
-    R = length(inModelMats[objectId] * vec4(error.centerRP.w,0,0,0));
-    //center = error.centerR.xyz;
-    //R = error.centerR.w;
-    odata[gl_GlobalInvocationID.x].y = error.errorWorld.y * getScreenBoundRadiusSq(center,R);
-
-    //center = (inModelMats[objectId] * vec4(error.centerR.xyz,1)).xyz;
-    //R = length(inModelMats[objectId] * vec4(error.centerR.w,0,0,0));
-    //odata[index].x = getScreenBoundRadiusSq(center,R);
-    //
-    //center = error.centerR.xyz;
-    //R = error.centerR.w;
-    //odata[index].y = getScreenBoundRadiusSq(center,R);
-    //odata[index].xy = error.errorWorld.xy;
-    //odata[index].xy = error.errorWorld.xy;
+    // 父节点误差 → 屏幕空间
+    vec3  centerParent = (inModelMats[objectId] * vec4(error.centerRP.xyz, 1.0)).xyz;
+    float radiusParent = length(inModelMats[objectId] * vec4(error.centerRP.w, 0.0, 0.0, 0.0));
+    odata[gl_GlobalInvocationID.x].y = error.errorWorld.y *
+        getScreenBoundRadiusSq(centerParent, radiusParent,
+                               vp, ubomats.camUp, ubomats.camRight, pcs.screenSize);
 }
-
