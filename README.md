@@ -38,7 +38,11 @@ graph TB
     style N fill:#87CEEB
 ```
 
+[[List and TODO Fix Bug]]
+
 # 参考资料
 
 [【22.GPU驱动的几何管线-nanite (Part 1) | GAMES104-现代游戏引擎：从入门到实践】](https://www.bilibili.com/video/BV1Et4y1P7ro/?share_source=copy_web&vd_source=de7a08b4d347de57ea41a8ae39a04d3b)
 [Epic演讲资料](https://advances.realtimerendering.com/s2021/Karis_Nanite_SIGGRAPH_Advances_2021_final.pdf)
+[Mesh处理参考](https://github.com/bdwhst/Vulcanite)
+[Render Graph参考](https://github.com/Raikiri/LegitEngine)
