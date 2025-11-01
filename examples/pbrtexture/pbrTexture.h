@@ -3,8 +3,8 @@
 #include "Pipeline.h"
 #include "vulkanexamplebase.h"
 #include "VulkanglTFModel.h"
-#include "../src/NaniteMesh/NaniteScene.h"
-#include "../src/NaniteMesh/Const.h"
+#include "NaniteScene.h"
+#include "Const.h"
 
 class VulkanDescriptorManager;
 

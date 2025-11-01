@@ -1,0 +1,484 @@
+---
+description: AI coding guidance and rules for this repository.
+alwaysApply: true
+---
+<rule>
+
+# cyVulkanNanite — AI 编码规则与指南
+
+## 1. 高层架构概览
+
+### 1.1 项目定位
+本项目是一个 **基于 Vulkan 的 Nanite（UE5 虚拟几何体）实现**，核心功能包括：
+- GPU 驱动的 BVH 遍历与 LOD 选择
+- 基于误差投影（Error Projection）的层级细节
+- 视锥剔除（Frustum Culling）+ Hi-Z 遮挡剔除（Occlusion Culling）
+- 硬件光栅化 + 软件光栅化混合管线
+- PBR + IBL 着色管线
+
+### 1.2 目录结构
+```
+cyVulkanNanite/
+├── base/                    # Vulkan 基础框架（Sascha Willems 风格）
+│   ├── vulkanexamplebase.*  # 示例基类，管理窗口、swapchain、主循环
+│   ├── VulkanDevice.*       # 物理/逻辑设备封装
+│   ├── VulkanBuffer.*       # GPU Buffer 封装
+│   ├── VulkanTexture.*      # Texture2D / CubeMap / Array 封装
+│   ├── VulkanInitializers.hpp  # Vulkan 结构体初始化工厂函数（inline）
+│   ├── VulkanDescriptorManager.*  # 描述符集管理（Singleton）
+│   ├── VulkanUIOverlay.*    # ImGui 覆盖层
+│   ├── VulkanSwapChain.*    # Swapchain 封装
+│   ├── VulkanglTFModel.*    # glTF 模型加载
+│   ├── VulkanTools.*        # 通用工具函数 + VK_CHECK_RESULT 宏
+│   ├── VulkanDebug.*        # Vulkan 调试工具
+│   ├── InstanceBase.h       # Singleton<T> 模板基类
+│   ├── camera.hpp           # 第一人称/LookAt 相机
+│   ├── threadpool.hpp       # 线程池
+│   ├── Entrypoints.h        # 平台入口宏 VULKAN_EXAMPLE_MAIN
+│   └── ...
+├── src/nanite/              # Nanite 核心算法
+│   ├── Const.h              # 全局常量 + Graph / MetisGraph / ClusterInfo / BVHNodeInfo
+│   ├── Cluster.*            # 簇（Cluster）数据结构
+│   ├── ClusterGroup.*       # 簇组（ClusterGroup）+ METIS 图分割
+│   ├── NaniteMesh.*         # Nanite 网格管理（加载/序列化/反序列化）
+│   ├── NaniteLodMesh.*      # LOD 网格处理（简化、BVH 构建、误差计算）
+│   ├── NaniteInstance.*     # Nanite 实例化（世界坐标转换、BVH 重构）
+│   ├── NaniteScene.*        # Nanite 场景（多 Mesh 聚合、GPU Buffer 创建）
+│   ├── NaniteBVH.h          # BVH 节点定义
+│   ├── utils.*              # 断言 + 三角形 AABB 计算
+│   └── vksTools.*           # 资源创建辅助（StagingBuffer、IBL 生成、描述符设置）
+├── examples/
+│   └── pbrtexture/          # 主示例（PBR + Nanite 完整管线）
+│       ├── main.cpp         # 入口 VULKAN_EXAMPLE_MAIN(PBRTexture)
+│       ├── pbrTexture.h     # PBRTexture 类声明
+│       ├── pbrtexture.cpp   # 实现
+│       ├── PBRTextureBuffer.h  # UBO / SSBO / RasterizeBuffer 结构体
+│       ├── Pipeline.*       # Pipeline 封装
+│       └── vksTools.cpp     # 描述符绑定 + IBL 生成实现
+├── shaders/glsl/pbrtexture/ # GLSL 着色器源码
+│   ├── bvhtraversal.comp    # BVH 遍历 Compute Shader
+│   ├── error.comp           # 误差投影 Compute
+│   ├── culling.comp         # 视锥+遮挡剔除 Compute
+│   ├── hwrasterize.*        # 硬件光栅化 (vert/geom/frag)
+│   ├── swrasterize.comp     # 软件光栅化 Compute
+│   ├── mergeRast.comp       # 合并光栅结果 Compute
+│   ├── depthCopy.comp       # 深度拷贝 Compute
+│   ├── genHiz.comp          # Hi-Z 生成 Compute
+│   ├── clearImage.comp      # 清除图像 Compute
+│   ├── shading.*            # 延迟着色 (vert/frag)
+│   ├── data_structures.glsl # 共享数据结构定义
+│   ├── common_culling.glsl  # 剔除相关共享函数
+│   └── pbr_common.glsl      # PBR 共享函数
+├── external/                # 第三方依赖（glm, imgui, tinygltf, ktx, stb, vulkan headers）
+├── assets/                  # 模型 (glTF) 和纹理资源
+├── CMakeLists.txt           # 顶层 CMake
+├── build_windows.bat        # Windows 构建脚本
+└── documents/               # 设计文档（Render Graph、同步梳理、Bug 列表）
+```
+
+### 1.3 应用入口与主循环
+**入口宏 (Windows):**
+```cpp
+// examples/pbrtexture/main.cpp
+#include "Entrypoints.h"
+#include "pbrTexture.h"
+VULKAN_EXAMPLE_MAIN(PBRTexture)
+```
+`VULKAN_EXAMPLE_MAIN` 展开为：
+```
+new PBRTexture() → initVulkan() → setupWindow() → prepare() → renderLoop() → delete
+```
+
+**主渲染循环 (`renderLoop()`):**
+```
+renderLoop() → nextFrame() → [计算 deltaTime, 更新 Camera] → render() → [呈现帧]
+```
+
+### 1.4 渲染管线流程（每帧）
+```
+场景数据 → BVH遍历 → 误差投影 → LOD选择
+  → 视锥剔除 → 硬件光栅化 / 软件光栅化
+  → 深度拷贝 → Hi-Z生成 → 遮挡剔除 → 合并光栅结果
+  → 延迟着色 → 天空盒 → 后处理 → 最终图像
+```
+
+---
+
+## 2. 代码风格与一致性规范
+
+### 2.1 语言标准
+- **C++20**（`CMAKE_CXX_STANDARD 20`）。允许使用 `std::format`, `std::source_location`, `[[nodiscard]]`, `constexpr if`, structured bindings 等 C++20 特性。
+- GLSL 着色器使用 `#version 450` 或更高。
+
+### 2.2 命名约定
+
+| 类别 | 约定 | 示例 |
+|------|------|------|
+| **类/结构体** | PascalCase | `VulkanDevice`, `PBRTexture`, `NaniteLodMesh`, `ClusterGroup` |
+| **成员函数** | camelCase | `createBuffer()`, `loadFromFile()`, `buildClusterGraph()` |
+| **成员变量** | camelCase，无前缀 | `pipelineLayout`, `vulkanDevice`, `naniteMesh` |
+| **私有成员** (Logger) | m_ 前缀 | `m_minLevel`, `m_consoleEnabled` |
+| **局部变量** | camelCase | `cmdBuf`, `imageCI`, `subresourceRange` |
+| **常量** | UPPER_SNAKE_CASE 或 constexpr camelCase | `CLUSTER_TARGET_SIZE`, `DEFAULT_FENCE_TIMEOUT` |
+| **枚举类** | PascalCase（枚举名和成员） | `DescriptorType::Scene`, `DescriptorType::bvhTraversal` |
+| **命名空间** | PascalCase 或 小写 | `Nanite`, `vks`, `vks::tools`, `vks::initializers`, `vkglTF` |
+| **文件名** | PascalCase .h/.cpp（基类）或 camelCase（示例类） | `VulkanDevice.h`, `pbrTexture.h`, `NaniteLodMesh.cpp` |
+| **着色器文件** | 小写驼峰或小写 | `bvhtraversal.comp`, `genHiz.comp`, `hwrasterize.vert` |
+| **Vulkan 句柄** | 初始化为 `VK_NULL_HANDLE` | `VkPipeline pipeline{VK_NULL_HANDLE};` |
+
+### 2.3 头文件标准
+- 使用 `#pragma once` 作为 include guard（**不使用** `#ifndef` 风格）。
+- 许可证头注释格式（来自基础框架的文件）：
+```cpp
+/*
+ * 描述
+ *
+ * Copyright (C) 2016-2025 by Sascha Willems - www.saschawillems.de
+ *
+ * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
+ */
+```
+- 自定义模块（`src/nanite/` 和 `examples/`）不强制许可证头。
+
+### 2.4 注释风格
+- 使用 `//` 单行注释为主（中英文皆可）。
+- 文档中使用中文注释：`// 启用normal和texcoord2d`, `// 会传入给Shader的BVH节点信息`。
+- Vulkan 结构体的注释常使用 `/** @brief ... */` 格式（仅在 base/ 模块）。
+- 不要求 Doxygen 格式，但关键公共 API 应有简短说明。
+
+### 2.5 类型提示与修饰符
+- 使用 `[[nodiscard]]` 标注返回值不应被忽略的函数。
+- 使用 `const` 和 `noexcept` 修饰适当的函数。
+- GPU 传入结构体必须使用 `alignas(N)` 确保对齐：
+```cpp
+alignas(16) glm::vec3 pMinWorld;  // vec3 按 16 字节对齐
+alignas(4)  uint32_t objectId;
+alignas(8)  glm::vec2 errorWorld;
+```
+- 禁用拷贝的类使用 `= delete`：
+```cpp
+PBRTexture(const PBRTexture&) = delete;
+PBRTexture& operator=(const PBRTexture&) = delete;
+```
+
+### 2.6 缩进与格式
+- **缩进：使用 Tab**（基础框架风格）。
+- 花括号换行风格（Allman 和 K&R 混用，以现有代码为准）。
+- 示例类中函数实现习惯：在 `.cpp` 中完全限定类名。
+
+---
+
+## 3. 快速参考与上下文映射
+
+### 3.1 核心工具函数签名（Top 10 最常用）
+
+```cpp
+// ---- VulkanDevice (base/VulkanDevice.h) ----
+// 创建 GPU Buffer（两种重载）
+VkResult VulkanDevice::createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, VkBuffer *buffer, VkDeviceMemory *memory, void *data = nullptr);
+VkResult VulkanDevice::createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, vks::Buffer *buffer, VkDeviceSize size, void *data = nullptr);
+
+// 创建一次性命令缓冲区
+VkCommandBuffer VulkanDevice::createCommandBuffer(VkCommandBufferLevel level, bool begin = false);
+VkCommandBuffer VulkanDevice::createCommandBuffer(VkCommandBufferLevel level, VkCommandPool pool, bool begin = false);
+
+// 提交并等待命令缓冲区完成
+void VulkanDevice::flushCommandBuffer(VkCommandBuffer commandBuffer, VkQueue queue, bool free = true);
+void VulkanDevice::flushCommandBuffer(VkCommandBuffer commandBuffer, VkQueue queue, VkCommandPool pool, bool free = true);
+
+// 查找内存类型索引
+uint32_t VulkanDevice::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound = nullptr) const;
+
+// ---- VulkanTools (base/VulkanTools.h) ----
+// 设置图像布局转换（pipeline barrier）
+void vks::tools::setImageLayout(VkCommandBuffer cmdbuffer, VkImage image, VkImageLayout oldImageLayout, VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange, VkPipelineStageFlags srcStageMask = ..., VkPipelineStageFlags dstStageMask = ...);
+
+// 加载 SPIR-V 着色器模块
+VkShaderModule vks::tools::loadShader(const char *fileName, VkDevice device);
+
+// 资源路径获取
+const std::string getAssetPath();      // 返回 assets/ 目录路径
+const std::string getShaderBasePath(); // 返回 shaders/ 目录路径
+
+// ---- VulkanExampleBase (base/vulkanexamplebase.h) ----
+// 加载着色器阶段
+VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(std::string fileName, VkShaderStageFlagBits stage);
+```
+
+### 3.2 VulkanInitializers — 结构体初始化工厂（最常用）
+所有函数位于 `vks::initializers` 命名空间（`base/VulkanInitializers.hpp`），均为 `inline`：
+```cpp
+vks::initializers::imageCreateInfo()
+vks::initializers::imageViewCreateInfo()
+vks::initializers::samplerCreateInfo()
+vks::initializers::bufferCreateInfo()
+vks::initializers::memoryAllocateInfo()
+vks::initializers::descriptorSetLayoutBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding, uint32_t descriptorCount = 1)
+vks::initializers::writeDescriptorSet(VkDescriptorSet dstSet, VkDescriptorType type, uint32_t binding, VkDescriptorBufferInfo* bufferInfo, uint32_t descriptorCount = 1)
+vks::initializers::pipelineCreateInfo(VkPipelineLayout layout, VkRenderPass renderPass, VkPipelineCreateFlags flags = 0)
+vks::initializers::computePipelineCreateInfo(VkPipelineLayout layout, VkPipelineCreateFlags flags = 0)
+vks::initializers::pushConstantRange(VkShaderStageFlags stageFlags, uint32_t size, uint32_t offset)
+vks::initializers::viewport(float width, float height, float minDepth, float maxDepth)
+vks::initializers::rect2D(int32_t width, int32_t height, int32_t offsetX, int32_t offsetY)
+```
+
+### 3.3 关键常量
+
+```cpp
+// Nanite 核心常量 (src/nanite/Const.h)
+constexpr int Nanite::CLUSTER_TARGET_SIZE = 56;       // 每个簇的目标三角形数
+constexpr int Nanite::CLUSTER_MAX_SIZE = 64;           // 每个簇的最大三角形数
+constexpr int Nanite::CLUSTER_GROUP_TARGET_SIZE = 15;  // 每个簇组的目标簇数
+constexpr int Nanite::CLUSTER_GROUP_MAX_SIZE = 32;     // 每个簇组的最大簇数
+
+// Compute Shader 工作组大小 (examples/pbrtexture/pbrTexture.h)
+static constexpr int WORKGROUP_SIZE_X = 8;
+static constexpr int WORKGROUP_SIZE_Y = 8;
+static constexpr int DISPATCH_GROUP_SIZE = 32;
+
+// Vulkan 全局定义 (base/VulkanTools.h)
+#define VK_FLAGS_NONE 0
+#define DEFAULT_FENCE_TIMEOUT 100000000000  // 纳秒（100秒）
+```
+
+### 3.4 描述符类型枚举 (DescriptorType)
+```cpp
+// base/VulkanDescriptorManager.h
+enum class DescriptorType {
+    Scene, hiz, depthCopy, debugQuad, culling, errorPorj,
+    hwRast, swRast, clearImage, mergeRast, bvhTraversal, shading,
+};
+```
+> **注意:** `errorPorj` 是已知拼写（非 `errorProj`），修改时不要"修正"此名称，除非明确重构。
+
+### 3.5 全局对象访问方式
+
+| 访问目标 | 方式 | 说明 |
+|----------|------|------|
+| Vulkan 设备 | `vulkanDevice` (成员变量) | `VulkanExampleBase` 的 `vks::VulkanDevice*` 成员 |
+| 逻辑设备 | `vulkanDevice->logicalDevice` 或 `device` (本地变量) | `VkDevice` |
+| 图形队列 | `queue` (成员变量) 或 `GetQueue()` | `VkQueue` |
+| 描述符管理器 | `VulkanDescriptorManager::getManager()` | Singleton 模式 |
+| 相机 | `camera` (成员变量) | `Camera` 实例，支持 `firstperson` / `lookat` 模式 |
+| 资源路径 | `getAssetPath()` / `getShaderBasePath()` / `getShadersPath()` | 全局函数和成员函数 |
+| Pipeline 缓存 | `GetPipelineCache()` 或 `pipelineCache` | `VkPipelineCache` |
+| Nanite 场景 | `scene` (PBRTexture 成员) | `Nanite::NaniteScene` |
+| Nanite 网格 | `naniteMesh` (PBRTexture 成员) | `Nanite::NaniteMesh` |
+
+---
+
+## 4. 渲染/游戏特定模式
+
+### 4.1 异步与并发
+
+- **GPU 同步采用 Pipeline Barriers：** 所有跨 pass 的资源依赖使用 `VkBufferMemoryBarrier` 和 `VkImageMemoryBarrier`。
+- 辅助创建函数：
+```cpp
+[[nodiscard]] static VkBufferMemoryBarrier createBufferBarrier(VkBuffer buffer, VkAccessFlags srcAccess, VkAccessFlags dstAccess);
+[[nodiscard]] static VkImageMemoryBarrier createImageBarrier(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags srcAccess, VkAccessFlags dstAccess, const VkImageSubresourceRange& subresourceRange);
+```
+- **数据上传使用 Staging Buffer 模式：**
+```cpp
+vks::vksTools::createStagingBuffer(variableLink, srcUsage, size, data, dstUsage, targetBuffer);
+```
+- 线程池 (`base/threadpool.hpp`) 可用于 CPU 端并行，但当前主要用途有限。
+
+### 4.2 生命周期管理
+
+**严格遵循以下生命周期：**
+
+```
+构造函数 (Constructor)
+    → initVulkan()        // 创建 instance, device, swapchain
+    → prepare()           // 加载资源, 创建 pipeline, 设置描述符
+        → loadAssets()
+        → createNaniteScene()
+        → prepareUniformBuffers()
+        → setupDescriptors()
+        → preparePipelines()
+    → renderLoop()        // 主循环
+        → render()        // 每帧调用，更新 UBO + buildCommandBuffers
+    → ~Destructor()       // 销毁所有资源
+```
+
+**销毁规则（极其重要）：**
+1. 在析构函数中，**必须先检查 `if (!device) return;`**。
+2. 按 **创建的逆序** 销毁资源。
+3. **Pipeline → PipelineLayout → DescriptorManager → Textures → Buffers → ImageViews**。
+4. 使用 `Pipeline::destroy(device)` 封装销毁。
+5. 循环销毁 ImageView 时，**清空容器**：
+```cpp
+for (auto& imageView : hizImageViews) {
+    vkDestroyImageView(device, imageView, nullptr);
+}
+hizImageViews.clear();
+```
+6. Nanite 缓存序列化/反序列化使用 `serialize(filepath)` / `deserialize(filepath)` 对称操作。
+
+### 4.3 Vulkan 资源创建模式
+
+**Buffer 创建标准模式：**
+```cpp
+VK_CHECK_RESULT(vulkanDevice->createBuffer(
+    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    &myBuffer,
+    bufferSize,
+    initialData  // 可选，nullptr 表示不初始化
+));
+myBuffer.setupDescriptor();  // 设置描述符信息
+```
+
+**描述符设置标准模式：**
+```cpp
+auto descMgr = VulkanDescriptorManager::getManager();
+descMgr->addSetLayout(DescriptorType::XXX, setLayoutBindings, numSets);
+descMgr->createLayoutsAndSets(device);
+descMgr->writeToSet(DescriptorType::XXX, setIndex, binding, &bufferInfo);
+```
+
+### 4.4 性能规则
+
+1. **GPU Buffer 使用 `VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT`**：通过 Staging Buffer 上传，不使用 host visible memory 做渲染资源。
+2. **Compute Shader Dispatch 规则**：
+   - 工作组大小 = `WORKGROUP_SIZE_X=8, WORKGROUP_SIZE_Y=8`
+   - Dispatch 组大小 = `DISPATCH_GROUP_SIZE=32`
+   - 向上取整: `dispatchCount = (totalCount + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE`
+3. **Hi-Z Buffer** 用于加速遮挡剔除，逐 mip 级别降采样。
+4. **Indirect Draw / Indirect Dispatch**：GPU 驱动绘制，避免 CPU-GPU 同步。
+5. **Nanite 缓存系统**：`initNaniteInfo(filepath, useCache=true)` 优先从磁盘反序列化，避免重复计算。
+6. **`alignas` 对齐**：所有传入 GPU 的结构体必须满足 std140/std430 对齐要求。
+
+### 4.5 错误处理
+
+**所有 Vulkan API 调用必须使用 `VK_CHECK_RESULT` 宏包裹：**
+```cpp
+VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &image));
+VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &memory));
+VK_CHECK_RESULT(vkBindImageMemory(device, image, memory, 0));
+```
+该宏在 `base/VulkanTools.h` 中定义，失败时打印错误字符串并 assert。
+
+**Nanite 断言：**
+```cpp
+Nanite::NaniteAssert(condition, "error message");
+// 使用 std::source_location 自动捕获文件/行号，失败时 std::abort()
+```
+
+---
+
+## 5. 开发者工作流
+
+### 5.1 环境搭建与构建
+
+```bash
+# 1. 安装依赖（首次）
+# 需要 Vulkan SDK（设置 VK_SDK_PATH 环境变量）
+# 需要 vcpkg（用于 OpenMesh、METIS 等库）
+
+# 2. 构建（Windows）
+mkdir build && cd build
+cmake -D VCPKG_TARGET_TRIPLET=x64-windows-static -D CMAKE_TOOLCHAIN_FILE=../vcpkglib/vcpkg.windows/scripts/buildsystems/vcpkg.cmake -G "Visual Studio 17 2022" -A "x64" ..
+msbuild cyVulkanNanite.sln /p:Configuration=Release
+
+# 或使用批处理脚本
+build_windows.bat
+```
+
+### 5.2 GLSL Shader 编译
+
+```bash
+# 单个 Shader
+%VK_SDK_PATH%/Bin/glslangValidator.exe -V input.comp -o input.comp.spv -g
+
+# 批量编译（Python 脚本）
+python shaders/glsl/compileshaders.py
+
+# CMake 自动编译：修改 .vert/.frag/.comp 文件后重新构建即可
+# 自动追踪同目录下的 .glsl include 文件依赖
+```
+
+### 5.3 添加新 Example 的步骤
+
+1. 在 `examples/` 下创建新目录，如 `examples/myexample/`。
+2. 创建 `main.cpp`、`myexample.h`、`myexample.cpp`。
+3. 在 `examples/CMakeLists.txt` 的 `EXAMPLES` 列表添加：`myexample`。
+4. 在 `shaders/glsl/myexample/` 添加着色器。
+
+### 5.4 新 Example 骨架模板
+
+```cpp
+// examples/myexample/myexample.h
+#pragma once
+#include "vulkanexamplebase.h"
+
+class MyExample : public VulkanExampleBase
+{
+public:
+    MyExample();
+    ~MyExample() override;
+
+    // 禁用拷贝
+    MyExample(const MyExample&) = delete;
+    MyExample& operator=(const MyExample&) = delete;
+
+    // 必须覆盖
+    void prepare() override;
+    void render() override;
+    void buildCommandBuffers() override;
+
+    // 可选覆盖
+    void getEnabledFeatures() override;
+    void viewChanged() override;
+    void OnUpdateUIOverlay(vks::UIOverlay* overlay) override;
+
+private:
+    // 资源声明
+    VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
+    VkPipeline pipeline{VK_NULL_HANDLE};
+};
+
+// examples/myexample/main.cpp
+#include "Entrypoints.h"
+#include "myexample.h"
+VULKAN_EXAMPLE_MAIN(MyExample)
+```
+
+### 5.5 新 Compute Pipeline 骨架模板
+
+```cpp
+// 1. 定义 DescriptorType（如果需要新类型，在 VulkanDescriptorManager.h 的枚举中添加）
+// 2. 设置描述符布局
+std::vector<VkDescriptorSetLayoutBinding> bindings = {
+    vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+    vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+};
+descMgr->addSetLayout(DescriptorType::MyCompute, bindings, 1);
+
+// 3. 创建 Pipeline
+VkPipelineLayoutCreateInfo layoutCI = vks::initializers::pipelineLayoutCreateInfo(&descMgr->getSetLayout(DescriptorType::MyCompute), 1);
+VK_CHECK_RESULT(vkCreatePipelineLayout(device, &layoutCI, nullptr, &myPipeline.pipelineLayout));
+
+VkComputePipelineCreateInfo pipelineCI = vks::initializers::computePipelineCreateInfo(myPipeline.pipelineLayout);
+pipelineCI.stage = loadShader(getShadersPath() + "myexample/mycompute.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &myPipeline.pipeline));
+
+// 4. Dispatch
+vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myPipeline.pipeline);
+vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, myPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::MyCompute, 0), 0, nullptr);
+vkCmdDispatch(cmdBuffer, (count + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
+```
+
+---
+
+## 6. 关键安全规则
+
+1. **风格一致性是法律：** AI 必须精确匹配现有的缩进（Tab）、import 排序、变量命名风格。
+2. **零幻觉：** 仅引用代码库中实际存在的 API、常量和类。不要编造不存在的函数。
+3. **GPU 结构体对齐：** 修改任何传入 Shader 的 C++ 结构体时，必须同步更新 GLSL 端定义，并确保 `alignas` 正确。
+4. **Vulkan 资源必须成对管理：** 每个 `vkCreate*` 必须有对应的 `vkDestroy*`，每个 `vkAllocate*` 必须有 `vkFree*`。
+5. **修改描述符绑定时**，必须同时检查 `vksTools::setPbrDescriptor()` 中的绑定序号和 Shader 中的 `layout(binding=N)` 是否一致。
+6. **不要"修正"** 已知的命名不一致（如 `errorPorj`），除非用户明确要求重构。
+7. **Pipeline Barrier 不能遗漏：** 在 Compute 和 Graphics pass 之间切换时，必须插入适当的 buffer/image memory barrier。
+
+</rule>

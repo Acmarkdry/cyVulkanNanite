@@ -17,14 +17,8 @@ project(${NAME})
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(external)
-include_directories(external/glm)
-include_directories(external/gli)
-include_directories(external/imgui)
-include_directories(external/tinygltf)
-include_directories(external/ktx/include)
-include_directories(external/ktx/other_include)
-include_directories(base)
+# include 路径现在通过 target_include_directories 在各自的 CMakeLists.txt 中管理
+# 不再使用全局 include_directories()
 
 OPTION(USE_D2D_WSI "Build the project using Direct to Display swapchain" OFF)
 OPTION(USE_DIRECTFB_WSI "Build the project using DirectFB swapchain" OFF)
@@ -154,5 +148,6 @@ ENDIF(WIN32)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/")
 
+add_subdirectory(src/nanite)
 add_subdirectory(base)
 add_subdirectory(examples)

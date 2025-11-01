@@ -10,10 +10,10 @@
 #include "logger.h"
 #include "pbrTexture.h"
 #include "VulkanDescriptorManager.h"
-#include "../../src/vksTools.h"
-#include "../../src/NaniteMesh/NaniteMesh.h"
-#include "../../src/NaniteMesh/NaniteInstance.h"
-#include "../../src/NaniteMesh/NaniteLodMesh.h"
+#include "vksTools.h"
+#include "NaniteMesh.h"
+#include "NaniteInstance.h"
+#include "NaniteLodMesh.h"
 
 
 PBRTexture::PBRTexture() : VulkanExampleBase(true)
