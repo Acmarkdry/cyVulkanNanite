@@ -91,7 +91,7 @@ function(buildExample EXAMPLE_NAME)
 
 	if(WIN32)
 		add_executable(${EXAMPLE_NAME} WIN32 ${MAIN_CPP} ${SOURCE} ${MAIN_HEADER} ${SHADERS_GLSL} ${SHADER_INCLUDES_GLSL} ${SHADERS_HLSL} ${README_FILES})
-		target_link_libraries(${EXAMPLE_NAME} base ${Vulkan_LIBRARY} ${WINLIBS})
+		target_link_libraries(${EXAMPLE_NAME} render_graph base ${Vulkan_LIBRARY} ${WINLIBS})
 
 		# 编译 GLSL → SPIR-V（使用公共函数，自动追踪 .glsl 依赖）
 		set(SPIRV_DEPS "")
@@ -101,7 +101,7 @@ function(buildExample EXAMPLE_NAME)
 		set_target_properties(${EXAMPLE_NAME}_shader_spv PROPERTIES FOLDER "CMakePredefinedTargets")
 	else(WIN32)
 		add_executable(${EXAMPLE_NAME} ${MAIN_CPP} ${SOURCE} ${MAIN_HEADER} ${SHADERS_GLSL} ${SHADER_INCLUDES_GLSL} ${SHADERS_HLSL} ${README_FILES})
-		target_link_libraries(${EXAMPLE_NAME} base)
+		target_link_libraries(${EXAMPLE_NAME} render_graph base)
 	endif(WIN32)
 
 	file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
