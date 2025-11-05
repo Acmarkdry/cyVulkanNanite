@@ -26,6 +26,7 @@ target_include_directories(base PUBLIC
     ${CMAKE_SOURCE_DIR}/external/tinygltf
     ${CMAKE_SOURCE_DIR}/external/ktx/include
     ${CMAKE_SOURCE_DIR}/external/ktx/other_include
+    ${Vulkan_INCLUDE_DIRS}
 )
 
 if(WIN32)

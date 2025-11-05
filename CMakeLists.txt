@@ -29,33 +29,19 @@ set(RESOURCE_INSTALL_DIR "" CACHE PATH "Path to install resources to (leave empt
 
 # set(CMAKE_TOOLCHAIN_FILE [path to vcpkg]/scripts/buildsystems/vcpkg.cmake)
 
-# Use FindVulkan module added with CMAKE 3.7
-if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
-	message(STATUS "Using module to find Vulkan")
-	find_package(Vulkan)
-endif()
+# Use FindVulkan module - require system Vulkan SDK
+message(STATUS "Looking for Vulkan SDK...")
+find_package(Vulkan REQUIRED)
+message(STATUS "Vulkan SDK found: ${Vulkan_INCLUDE_DIRS}")
+message(STATUS "Vulkan library: ${Vulkan_LIBRARIES}")
 
 IF(UNIX AND NOT APPLE)
 	set(LINUX TRUE)
 ENDIF()
 
 IF(WIN32)
-	IF (NOT Vulkan_FOUND)
-		find_library(Vulkan_LIBRARY NAMES vulkan-1 vulkan PATHS ${CMAKE_SOURCE_DIR}/libs/vulkan)
-		IF (Vulkan_LIBRARY)
-			set(Vulkan_FOUND ON)
-			MESSAGE("Using bundled Vulkan library version")
-		ENDIF()
-	ENDIF()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_USE_PLATFORM_WIN32_KHR")
 ELSEIF(LINUX)
-	IF (NOT Vulkan_FOUND)
-		find_library(Vulkan_LIBRARY NAMES vulkan HINTS "$ENV{VULKAN_SDK}/lib" "${CMAKE_SOURCE_DIR}/libs/vulkan" REQUIRED)
-		IF (Vulkan_LIBRARY)
-			set(Vulkan_FOUND ON)
-			MESSAGE("Using bundled Vulkan library version")
-		ENDIF()
-	ENDIF()
 	find_package(Threads REQUIRED)
 	IF(USE_D2D_WSI)
 		MESSAGE("Using direct to display extension...")
