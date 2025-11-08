@@ -20,6 +20,7 @@ target_include_directories(nanite_core PUBLIC
     ${CMAKE_SOURCE_DIR}/external/tinygltf
     ${CMAKE_SOURCE_DIR}/external/ktx/include
     ${CMAKE_SOURCE_DIR}/external/ktx/other_include
+    ${Vulkan_INCLUDE_DIRS}
 )
 
 # 第三方依赖
