@@ -1,21 +1,24 @@
 # src/RenderGraph/CMakeLists.txt
-# RenderGraph 静态库 — 渲染图抽象层
+# RenderGraph 测试可执行文件
 
 file(GLOB RENDER_GRAPH_SOURCES "*.cpp")
 file(GLOB RENDER_GRAPH_HEADERS "*.h")
 
-add_library(render_graph STATIC ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS})
+# 改为可执行文件
+add_executable(render_graph_test ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS})
 
-# 暴露 include 路径给依赖者
-# PUBLIC: 任何链接 render_graph 的目标都能直接 #include "RenderGraph.h" 等
-target_include_directories(render_graph PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# include 路径
+target_include_directories(render_graph_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# 链接 base 库（传递依赖：base -> nanite_core -> OpenMesh/METIS）
-# base 以 PUBLIC 方式暴露了以下 include 路径和链接：
-#   - base/ 头文件（logger.h, VulkanDevice.h, VulkanBuffer.h 等）
-#   - Vulkan SDK
-#   - external/（glm, imgui, tinygltf, ktx）
-#   - nanite_core 头文件（utils.h / NaniteAssert 等）
-target_link_libraries(render_graph PUBLIC base)
+# 打印找到的源文件
+message(STATUS "Found sources: ${RENDER_GRAPH_SOURCES}")
 
-message(STATUS "render_graph: sources in ${CMAKE_CURRENT_SOURCE_DIR}")
+# 链接 base 库
+target_link_libraries(render_graph_test PRIVATE base)
+
+# 设置输出目录（可选）
+set_target_properties(render_graph_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+message(STATUS "render_graph_test: executable from ${CMAKE_CURRENT_SOURCE_DIR}")
