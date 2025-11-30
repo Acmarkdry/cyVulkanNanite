@@ -1,8 +1,8 @@
 # src/RenderGraph/CMakeLists.txt
 # RenderGraph 测试可执行文件
 
-file(GLOB RENDER_GRAPH_SOURCES "*.cpp")
-file(GLOB RENDER_GRAPH_HEADERS "*.h")
+file(GLOB RENDER_GRAPH_SOURCES "private/*.cpp")
+file(GLOB RENDER_GRAPH_HEADERS "public/*.h")
 
 # 改为可执行文件
 add_executable(render_graph_test ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS})
