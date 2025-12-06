@@ -8,7 +8,10 @@ file(GLOB RENDER_GRAPH_HEADERS "public/*.h")
 add_executable(render_graph_test ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS})
 
 # include 路径
-target_include_directories(render_graph_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(render_graph_test PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/public
+)
 
 # 打印找到的源文件
 message(STATUS "Found sources: ${RENDER_GRAPH_SOURCES}")

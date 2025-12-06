@@ -1,4 +1,4 @@
-﻿#include "public/Synchronization.h"
+﻿#include "Synchronization.h"
 
 namespace cyRenderGraph
 {

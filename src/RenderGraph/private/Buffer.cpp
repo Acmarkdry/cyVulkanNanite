@@ -1,5 +1,5 @@
-#include "public/Buffer.h"
-#include "public/RenderGraphUtils.h"
+#include "Buffer.h"
+#include "RenderGraphUtils.h"
 
 cyRenderGraph::Buffer::Buffer(vk::PhysicalDevice physicalDevice, vk::Device logicalDevice, vk::DeviceSize size, vk::BufferUsageFlags usageFlags, vk::MemoryPropertyFlags memoryVisibility)
 {

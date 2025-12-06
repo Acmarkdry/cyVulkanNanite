@@ -1,4 +1,4 @@
-#include "public/RenderGraphUtils.h"
+#include "RenderGraphUtils.h"
 
 namespace cyRenderGraph
 {
