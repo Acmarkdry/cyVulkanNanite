@@ -6,22 +6,10 @@ namespace cyRenderGraph
 	class Buffer
 	{
 	public:
-		vk::Buffer GetHandle()
-		{
-			return bufferHandle.get();
-		}
-		vk::DeviceMemory GetMemory()
-		{
-			return bufferMemory.get();
-		}
-		void *Map()
-		{
-			return logicalDevice.mapMemory(GetMemory(), 0, size);
-		}
-		void Unmap()
-		{
-			logicalDevice.unmapMemory(GetMemory());
-		}
+		vk::Buffer GetHandle();
+		vk::DeviceMemory GetMemory();
+		void *Map();
+		void Unmap();
 		
 		Buffer(vk::PhysicalDevice physicalDevice, vk::Device logicalDevice, vk::DeviceSize size, vk::BufferUsageFlags usageFlags, vk::MemoryPropertyFlags memoryVisibility);
 		

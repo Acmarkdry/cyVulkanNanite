@@ -11,6 +11,7 @@ add_executable(render_graph_test ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS}
 target_include_directories(render_graph_test PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/public
+    ${CMAKE_SOURCE_DIR}/external/gli
 )
 
 # 打印找到的源文件

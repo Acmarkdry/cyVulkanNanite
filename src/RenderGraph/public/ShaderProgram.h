@@ -8,10 +8,12 @@
 #include "vulkan/vulkan.hpp"
 #include "spirv_cross/spirv_cross.hpp"
 
+/*
+ * 核心需求是通过spirv-cross解析spir-v字节码，自动提取shader中的资源，从而构建resource layout
+ */
 namespace cyRenderGraph
 {
 	class DescriptorSetLayoutKey;
-	class Shader;
 	class Sampler;
 	class ImageView;
 	class Buffer;
@@ -43,7 +45,8 @@ namespace cyRenderGraph
 		friend class DescriptorSetLayoutKey;
 		friend class Shader;
 	};
-
+	
+	// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
 	struct ImageSamplerBinding
 	{
 		ImageSamplerBinding() : imageView(nullptr), sampler(nullptr)
@@ -65,7 +68,8 @@ namespace cyRenderGraph
 		Sampler* sampler;
 		uint32_t shaderBindingId;
 	};
-
+	
+	// VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
 	struct UniformBufferBinding
 	{
 		UniformBufferBinding() : buffer(nullptr), offset(-1), size(-1)
@@ -87,7 +91,8 @@ namespace cyRenderGraph
 		vk::DeviceSize offset;
 		vk::DeviceSize size;
 	};
-
+	
+	// VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
 	struct StorageBufferBinding
 	{
 		StorageBufferBinding() : buffer(nullptr), offset(-1), size(-1)
@@ -109,7 +114,8 @@ namespace cyRenderGraph
 		vk::DeviceSize offset;
 		vk::DeviceSize size;
 	};
-
+	
+	// VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
 	struct StorageImageBinding
 	{
 		StorageImageBinding() : imageView(nullptr)
@@ -129,7 +135,10 @@ namespace cyRenderGraph
 		ImageView* imageView;
 		uint32_t shaderBindingId;
 	};
-
+	
+	/*
+	 * 描述符布局，descriptor set中所有资源的meta info
+	 */
 	class DescriptorSetLayoutKey
 	{
 	public:
@@ -143,8 +152,7 @@ namespace cyRenderGraph
 		using StorageBufferId = ShaderResourceId<StorageBufferBase>;
 		struct StorageImageBase;
 		using StorageImageId = ShaderResourceId<StorageImageBase>;
-
-
+		
 		struct UniformData
 		{
 			bool operator<(const UniformData& other) const
@@ -510,7 +518,6 @@ namespace cyRenderGraph
 							dstUniformData.size = srcUniformData.size;
 							dstUniformData.name = srcUniformData.name;
 
-							//memberData.
 							dstUniformBuffer.uniformIds.push_back(dstUniformId);
 						}
 					}
@@ -524,8 +531,8 @@ namespace cyRenderGraph
 					}
 				}
 			}
-
-
+			
+			// 这里merge的时候，需要注意不是单纯的insert，对于相同的资源，要进行stage的merge
 			for (auto& imageSamplerBinding : imageSamplerBindings)
 			{
 				ImageSamplerId dstImageSamplerId;
@@ -556,6 +563,7 @@ namespace cyRenderGraph
 					}
 				}
 			}
+			
 			for (auto& storageBufferBinding : storageBufferBindings)
 			{
 				StorageBufferId dstStorageBufferId;
@@ -622,7 +630,6 @@ namespace cyRenderGraph
 				}
 			}
 
-
 			res.RebuildIndex();
 			return res;
 		}
@@ -680,8 +687,7 @@ namespace cyRenderGraph
 				storageImageBindingToIds[storageImageData.shaderBindingIndex] = storageImageId;
 			}
 		}
-
-
+		
 		friend class Shader;
 		uint32_t setShaderId;
 		uint32_t size;
@@ -709,13 +715,6 @@ namespace cyRenderGraph
 		Shader(vk::Device logicalDevice, std::string shaderFile)
 		{
 			auto bytecode = GetBytecode(shaderFile);
-			/*vk::ShaderStageFlagBits shaderStage;
-			if (shaderFile.find(".vert.spv") != std::string::npos)
-			  shaderStage = vk::ShaderStageFlagBits::eVertex;
-			if (shaderFile.find(".frag.spv") != std::string::npos)
-			  shaderStage = vk::ShaderStageFlagBits::eFragment;
-			if (shaderFile.find(".comp.spv") != std::string::npos)
-			  shaderStage = vk::ShaderStageFlagBits::eCompute;*/
 			Init(logicalDevice, bytecode);
 		}
 
@@ -744,8 +743,7 @@ namespace cyRenderGraph
 		{
 			return shaderModule.get();
 		}
-
-
+		
 		size_t GetSetsCount()
 		{
 			return descriptorSetLayoutKeys.size();
@@ -960,7 +958,8 @@ namespace cyRenderGraph
 		std::unique_ptr<ShaderModule> shaderModule;
 		glm::uvec3 localSize;
 	};
-
+	
+	// merge vertex and fragment
 	class ShaderProgram
 	{
 	public:

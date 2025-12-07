@@ -1,6 +1,7 @@
 #pragma once
 #include <vulkan/vulkan.hpp>
 #include <glm/vec3.hpp>
+#include <gli/gli.hpp>
 
 namespace vk
 {
