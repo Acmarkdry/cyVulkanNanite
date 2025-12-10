@@ -3,6 +3,7 @@
 #include <queue>
 
 #include "NaniteLodMesh.h"
+#include "TaskGraph.h"
 #include "utils.h"
 #include <filesystem>
 #include <json.hpp>
@@ -67,6 +68,9 @@ namespace Nanite
 
 	void NaniteMesh::generateNaniteInfo()
 	{
+		// åˆå§‹åŒ– TaskGraph çº¿ç¨‹æ± 
+		TaskGraph::Get().Initialize();
+
 		NaniteTriMesh mymesh;
 		vkglTFMeshToOpenMesh(mymesh, *vkglTFMesh);
 		int clusterGroupNum = -1;
@@ -114,9 +118,15 @@ namespace Nanite
 			if (i != 0) {
 				clusterIndexOffset[i] = clusterIndexOffset[i - 1] + meshes[i - 1].clusterNum;
 			}
-			meshes[i].createBVH();
 		}
-		// Õ¹Æ½BVH
+
+		// å¹¶è¡Œæ„å»ºæ¯ä¸ª LOD mesh çš„ BVHï¼ˆå„è‡ªç‹¬ç«‹ï¼Œæ— å…±äº«å†™çŠ¶æ€ï¼‰
+		ParallelFor(static_cast<int32_t>(meshes.size()), [this](int32_t i)
+		{
+			meshes[i].createBVH();
+		});
+
+		// å±•å¹³BVH
 		flattenBVH();
 	}
 	
@@ -136,7 +146,7 @@ namespace Nanite
 
 	std::vector<uint32_t> depthCounts;
 	uint32_t maxLevels = 0;
-	// Á½ÌËBFS±éÀú£ºµÚÒ»ÌË¸üĞÂÕ¹Æ½Ë÷Òı£¬µÚ¶şÌË¸üĞÂ×Ó½ÚµãË÷Òı
+	// ï¿½ï¿½ï¿½ï¿½BFSï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½Ë¸ï¿½ï¿½ï¿½Õ¹Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¶ï¿½ï¿½Ë¸ï¿½ï¿½ï¿½ï¿½Ó½Úµï¿½ï¿½ï¿½ï¿½ï¿½
 	while (!nodeQueue.empty())
 	{
 		auto currNode = nodeQueue.front();
@@ -162,7 +172,7 @@ namespace Nanite
 			}
 		}
 	}
-	flattenedBVHNodeInfos.resize(index); // index ¼´Îª½Úµã×ÜÊı
+	flattenedBVHNodeInfos.resize(index); // index ï¿½ï¿½Îªï¿½Úµï¿½ï¿½ï¿½ï¿½ï¿½
 
 	uint32_t totalClusterNum = 0;
 	for (size_t i = 0; i < meshes.size(); i++)
@@ -256,7 +266,7 @@ namespace Nanite
 		{
 			auto& mesh = meshes[i];
 			std::string output_filename = std::string(filepath) + "LOD_" + std::to_string(i) + ".obj";
-			// µ¼³öÍø¸ñµ½ÎÄ¼ş
+			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½
 			if (!OpenMesh::IO::write_mesh(mesh.mesh, output_filename, OpenMesh::IO::Options::VertexNormal | OpenMesh::IO::Options::VertexTexCoord))
 			{
 				std::cerr << "Error exporting mesh to " << output_filename << std::endl;
@@ -278,7 +288,7 @@ namespace Nanite
 		result[cache_time_key] = std::time(nullptr);
 		result["lodNums"] = lodNums;
 
-		// ±£´æJSONÊı¾İµ½ÎÄ¼ş
+		// ï¿½ï¿½ï¿½ï¿½JSONï¿½ï¿½ï¿½İµï¿½ï¿½Ä¼ï¿½
 		std::ofstream file(std::string(filepath) + "nanite_info.json");
 		if (file.is_open())
 		{
@@ -353,7 +363,7 @@ namespace Nanite
 
 	void NaniteMesh::buildClusterInfo()
 	{
-	// ³õÊ¼»¯ Cluster ĞÅÏ¢
+	// ï¿½ï¿½Ê¼ï¿½ï¿½ Cluster ï¿½ï¿½Ï¢
 	size_t totalClusterNum = 0;
 	for (int i = 0; i < meshes.size(); i++)
 	{
@@ -377,7 +387,7 @@ namespace Nanite
 			glm::vec3 p0, p1, p2;
 			NaniteTriMesh::FaceVertexIter fv_it = mesh.fv_iter(fh);
 
-			// »ñÈ¡Èı½ÇĞÎÈı¸ö¶¥µãµÄÎ»ÖÃ
+			// ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½
 			auto point0 = mesh.point(*fv_it);
 			++fv_it;
 			auto point1 = mesh.point(*fv_it);
@@ -435,12 +445,12 @@ namespace Nanite
 			errorInfo[j + currClusterNum].centerR = glm::vec4(worldCenter, worldRadius);
 			float parentBoundingRadius = 0;
 			glm::vec3 parentCenter = glm::vec3(0);
-			if (i == meshes.size() - 1) // ×îºóÒ»¼¶LOD£¬ÎŞ¸¸½Úµã
+			if (i == meshes.size() - 1) // ï¿½ï¿½ï¿½Ò»ï¿½ï¿½LODï¿½ï¿½ï¿½Ş¸ï¿½ï¿½Úµï¿½
 			{
 				parentBoundingRadius = worldRadius * 1.5f;
 				parentCenter = cluster.boundingSphereCenter;
 			}
-			else for (size_t k : cluster.parentClusterIndices) // »ñÈ¡×î´ó¸¸½Úµã°üÎ§Çò³ß´ç
+			else for (size_t k : cluster.parentClusterIndices) // ï¿½ï¿½È¡ï¿½ï¿½ó¸¸½Úµï¿½ï¿½Î§ï¿½ï¿½ß´ï¿½
 			{
 				parentBoundingRadius = std::max(parentBoundingRadius, meshes[i + 1].clusters[k].boundingSphereRadius);
 				parentCenter += meshes[i + 1].clusters[k].boundingSphereCenter;
@@ -474,7 +484,7 @@ namespace Nanite
 		if (useCache)
 		{
 			std::ifstream inputFile(cachePath + "nanite_info.json");
-			// TODO: ¼ì²é»º´æÊ±¼ä´ÁÒÔÅĞ¶ÏÊÇ·ñĞèÒªÖØĞÂÉú³É
+			// TODO: ï¿½ï¿½é»ºï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ¶ï¿½ï¿½Ç·ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 			if (inputFile.is_open())
 			{
 				deserialize(cachePath);

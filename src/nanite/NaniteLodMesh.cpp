@@ -7,6 +7,7 @@
 
 #include "Cluster.h"
 #include "ClusterGroup.h"
+#include "TaskGraph.h"
 #include "utils.h"
 #include "vksTools.h"
 #include "metis.h"
@@ -74,14 +75,14 @@ namespace Nanite
 
 	void NaniteLodMesh::assignTriangleClusterGroup(NaniteLodMesh& lastLOD)
 	{
-		// ¸´ÖÆÉÏÒ»¼¶LODµÄcluster groupĞÅÏ¢
+		// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½LODï¿½ï¿½cluster groupï¿½ï¿½Ï¢
 		for (size_t i = 0; i < lastLOD.clusterGroups.size(); ++i)
 		{
 			oldClusterGroups[i].clusterIndices = lastLOD.clusterGroups[i].clusterIndices;
 			oldClusterGroups[i].qemError = lastLOD.clusterGroups[i].qemError;
 		}
 
-		// ·ÖÅä°ë±ßµ½cluster group
+		// ï¿½ï¿½ï¿½ï¿½ï¿½ßµï¿½cluster group
 		for (const auto& heh : mesh.halfedges())
 		{
 			if (mesh.is_boundary(heh)) continue;
@@ -95,14 +96,27 @@ namespace Nanite
 		uint32_t clusterIndexOffset = 0;
 		std::vector<std::unordered_set<uint32_t>> newClusterIndicesSet(oldClusterGroups.size());
 
+		// Phase 1: å¹¶è¡Œå¤„ç†æ¯ä¸ª ClusterGroup çš„å±€éƒ¨å›¾æ„å»ºå’Œåˆ†åŒº
+		// æ¯ä¸ª ClusterGroup æ“ä½œè‡ªå·±çš„å±€éƒ¨æ•°æ®ï¼Œmesh å±æ€§åªè¯»ï¼Œæ— ç«äº‰
 		for (size_t i = 0; i < oldClusterGroups.size(); ++i)
 		{
 			auto& oldClusterGroup = oldClusterGroups[i];
 			oldClusterGroup.clusterGroupIndexPropHandle = clusterGroupIndexPropHandle;
 			oldClusterGroup.mesh = &mesh;
+		}
+
+		ParallelFor(static_cast<int32_t>(oldClusterGroups.size()), [this](int32_t i)
+		{
+			auto& oldClusterGroup = oldClusterGroups[i];
 			oldClusterGroup.buildTriangleIndicesLocalGlobalMapping();
 			oldClusterGroup.buildLocalTriangleGraph();
 			oldClusterGroup.generateLocalClusters();
+		});
+
+		// Phase 2: ä¸²è¡Œåˆå¹¶ç»“æœï¼ˆéœ€è¦ç´¯åŠ  clusterIndexOffsetï¼‰
+		for (size_t i = 0; i < oldClusterGroups.size(); ++i)
+		{
+			auto& oldClusterGroup = oldClusterGroups[i];
 
 			for (const auto& fh : oldClusterGroup.clusterGroupFaces)
 			{
@@ -122,7 +136,7 @@ namespace Nanite
 			clusterIndexOffset += oldClusterGroup.localClusterNum;
 		}
 
-		// ÑéÖ¤ËùÓĞÈı½ÇĞÎÒÑ·ÖÅä
+		// ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ·ï¿½ï¿½ï¿½
 		for (size_t i = 0; i < triangleClusterIndex.size(); ++i)
 		{
 			NaniteAssert(triangleClusterIndex[i] >= 0, "triangleClusterIndex[i] < 0");
@@ -134,7 +148,7 @@ namespace Nanite
 		buildTriangleVertexIndices();
 		initClustersFromFaces();
 
-		// ½¨Á¢¸¸×Ó¹ØÏµ
+		// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¹ï¿½Ïµ
 		for (size_t i = 0; i < lastLOD.clusters.size(); ++i)
 		{
 			for (const int idx : lastLOD.clusters[i].parentClusterIndices)
@@ -143,7 +157,7 @@ namespace Nanite
 			}
 		}
 
-		// ÉèÖÃQEMÎó²î
+		// ï¿½ï¿½ï¿½ï¿½QEMï¿½ï¿½ï¿½
 		for (size_t i = 0; i < oldClusterGroups.size(); ++i)
 		{
 			for (const auto& newClusterIndex : newClusterIndicesSet[i])
@@ -152,7 +166,7 @@ namespace Nanite
 			}
 		}
 
-		// ¼ÆËã°üÎ§ÇòºÍ±íÃæ»ı
+		// ï¿½ï¿½ï¿½ï¿½ï¿½Î§ï¿½ï¿½Í±ï¿½ï¿½ï¿½ï¿½
 		for (auto& cluster : clusters)
 		{
 			calcBoundingSphereFromChildren(cluster, lastLOD);
@@ -171,7 +185,7 @@ namespace Nanite
 			childClusters.parentBoundingSphereRadius= clusters[firstParent].boundingSphereRadius;
 		}
 
-		// ¼ÆËãLODÎó²î
+		// ï¿½ï¿½ï¿½ï¿½LODï¿½ï¿½ï¿½
 		for (auto& cluster : clusters)
 		{
 			cluster.lodLevel = lodLevel;
@@ -213,7 +227,7 @@ namespace Nanite
 		triangleGraph.resize(faceCount + embeddingSize);
 		isLastLODEdgeVertices.resize(faceCount * 3, false);
 
-		// ±ê¼Ç±ß½ç¶¥µã
+		// ï¿½ï¿½Ç±ß½ç¶¥ï¿½ï¿½
 		for (const auto& edge : mesh.edges())
 		{
 			const auto heh = mesh.halfedge_handle(edge, 0);
@@ -234,7 +248,7 @@ namespace Nanite
 			}
 		}
 
-		// ¹¹½¨¶ÔÅ¼Í¼
+		// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å¼Í¼
 		for (const auto& edge : mesh.edges())
 		{
 			const auto heh = mesh.halfedge_handle(edge, 0);
@@ -288,11 +302,13 @@ namespace Nanite
 			clusters[clusterIdx].lodError = -1;
 		}
 
-		for (auto& cluster : clusters)
+		// å¹¶è¡Œè®¡ç®—æ¯ä¸ª cluster çš„ BoundingSphere å’Œ SurfaceArea
+		// æ¯ä¸ª cluster åªè¯» mesh çš„é¡¶ç‚¹æ•°æ®ï¼Œå†™è‡ªå·±çš„æˆå‘˜ï¼Œæ— ç«äº‰
+		ParallelFor(static_cast<int32_t>(clusters.size()), [this](int32_t i)
 		{
-			getBoundingSphere(cluster);
-			calcSurfaceArea(cluster);
-		}
+			getBoundingSphere(clusters[i]);
+			calcSurfaceArea(clusters[i]);
+		});
 	}
 
 	void NaniteLodMesh::buildClusterGraph()
@@ -361,7 +377,7 @@ namespace Nanite
 			const auto currTargetFaceNum = static_cast<size_t>(
 				mymesh.n_faces() - clusterGroups[i].localFaceNum * (1.0 - SIMPLIFY_PERCENTAGE));
 
-			// ±ê¼Ç¶¥µã
+			// ï¿½ï¿½Ç¶ï¿½ï¿½ï¿½
 			for (const auto& heh : mymesh.halfedges())
 			{
 				const auto clusterGroupIdx = mymesh.property(clusterGroupIndexPropHandle, heh) - 1;
@@ -431,7 +447,7 @@ namespace Nanite
 		NaniteTriMesh::VertexHandle py, pz;
 		float dist2_max = -1.0f;
 
-		// ÕÒ×îÔ¶µãpy
+		// ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½py
 		for (const auto triangleIndex : triangleIndices)
 		{
 			const auto fv = getFaceVertices(mesh.face_handle(triangleIndex));
@@ -446,7 +462,7 @@ namespace Nanite
 			}
 		}
 
-		// ÕÒÀëpy×îÔ¶µÄµãpz
+		// ï¿½ï¿½ï¿½ï¿½pyï¿½ï¿½Ô¶ï¿½Äµï¿½pz
 		dist2_max = -1.0f;
 		for (const auto triangleIndex : triangleIndices)
 		{
@@ -465,7 +481,7 @@ namespace Nanite
 		auto c = (mesh.point(py) + mesh.point(pz)) / 2.0f;
 		auto r = std::sqrt(dist2_max) / 2.0f;
 
-		// À©Õ¹°üÎ§ÇòÒÔ°üº¬ËùÓĞµã
+		// ï¿½ï¿½Õ¹ï¿½ï¿½Î§ï¿½ï¿½ï¿½Ô°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğµï¿½
 		for (const auto triangleIndex : triangleIndices)
 		{
 			const auto fv = getFaceVertices(mesh.face_handle(triangleIndex));
@@ -707,9 +723,9 @@ namespace Nanite
 
 	void NaniteLodMesh::buildBVH()
 {
-    // ÔÚÍø¸ñ¼ò»¯ºó¹¹½¨BVH£¨ÒòÎª´ËÊ±ĞèÒªQEMÎó²î£©
-    // LOD 0£ºËùÓĞ cluster µÄ QEM Îó²îÎª -1£¬Á÷³Ì£ºÉú³É cluster -> Éú³É cluster group -> ¹¹½¨ BVH
-    // LOD N(N>0)£ºËùÓĞ cluster µÄ QEM Îó²î > 0£¬Á÷³Ì£º¼ò»¯ -> ÔÚ¾É cluster group ÄÚÖØĞÂ¾ÛÀà -> ÖØĞÂ·Ö×é -> ¹¹½¨ BVH
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ò»¯ºó¹¹½ï¿½BVHï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½Ê±ï¿½ï¿½ÒªQEMï¿½ï¿½î£©
+    // LOD 0ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ cluster ï¿½ï¿½ QEM ï¿½ï¿½ï¿½Îª -1ï¿½ï¿½ï¿½ï¿½ï¿½Ì£ï¿½ï¿½ï¿½ï¿½ï¿½ cluster -> ï¿½ï¿½ï¿½ï¿½ cluster group -> ï¿½ï¿½ï¿½ï¿½ BVH
+    // LOD N(N>0)ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ cluster ï¿½ï¿½ QEM ï¿½ï¿½ï¿½ > 0ï¿½ï¿½ï¿½ï¿½ï¿½Ì£ï¿½ï¿½ï¿½ -> ï¿½Ú¾ï¿½ cluster group ï¿½ï¿½ï¿½ï¿½ï¿½Â¾ï¿½ï¿½ï¿½ -> ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ -> ï¿½ï¿½ï¿½ï¿½ BVH
 
     std::vector<uint32_t> clusterGroupIndex;
     for (int i = 0; i < clusterGroups.size(); ++i)
@@ -746,9 +762,9 @@ namespace Nanite
         }
         std::string indent(currNode->depth, '\t');
         nodeStack.pop();
-        if (currNode->nodeStatus == NaniteBVHNodeStatus::LEAF) { // Ò¶½Úµã£¬´æ´¢ cluster group ´óĞ¡µÄ cluster ¼¯ºÏ
+        if (currNode->nodeStatus == NaniteBVHNodeStatus::LEAF) { // Ò¶ï¿½Úµã£¬ï¿½æ´¢ cluster group ï¿½ï¿½Ğ¡ï¿½ï¿½ cluster ï¿½ï¿½ï¿½ï¿½
             auto& clusterGroup = clusterGroups[currNode->start];
-            // ³õÊ¼»¯ clusterIndices
+            // ï¿½ï¿½Ê¼ï¿½ï¿½ clusterIndices
             NaniteAssert(clusterGroup.clusterIndices.size() <= CLUSTER_GROUP_MAX_SIZE, "too many clusterIndices");
             for (size_t i = 0; i < clusterGroup.clusterIndices.size(); i++)
             {
@@ -768,8 +784,8 @@ namespace Nanite
                 }
             }
         }
-        else { // ·ÇÒ¶½Úµã
-            // ºÏ²¢AABB
+        else { // ï¿½ï¿½Ò¶ï¿½Úµï¿½
+            // ï¿½Ï²ï¿½AABB
 			glm::vec3 pMin = glm::vec3(FLT_MAX);
 			glm::vec3 pMax = glm::vec3(-FLT_MAX);
             for (int i = currNode->start; i < currNode->end; ++i)
@@ -780,7 +796,7 @@ namespace Nanite
 			}
 			currNode->pMin = pMin;
 			currNode->pMax = pMax;
-            if (currNode->end - currNode->start < 4) { // ±ÈÒ¶½Úµã¸ßÒ»¼¶£¬Í£Ö¹·Ö¸î
+            if (currNode->end - currNode->start < 4) { // ï¿½ï¿½Ò¶ï¿½Úµï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Í£Ö¹ï¿½Ö¸ï¿½
                 currNode->nodeStatus = NaniteBVHNodeStatus::NODE;
                 for (int i = currNode->start; i < currNode->end; ++i)
                 {
@@ -796,27 +812,27 @@ namespace Nanite
                     nodeStack.push(child);
                 }
             }
-            else { // ¿ªÊ¼·Ö¸î
-			    // »ñÈ¡×î³¤Öá
+            else { // ï¿½ï¿½Ê¼ï¿½Ö¸ï¿½
+			    // ï¿½ï¿½È¡ï¿½î³¤ï¿½ï¿½
 			    glm::vec3 diff = pMax - pMin;
 			    int longestAxis = 0;
 			    if (diff[1] > diff[longestAxis]) longestAxis = 1;
 			    if (diff[2] > diff[longestAxis]) longestAxis = 2;
 
-			    // °´×î³¤ÖáÅÅĞò
+			    // ï¿½ï¿½ï¿½î³¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                 std::sort(clusterGroupIndex.begin() + currNode->start, clusterGroupIndex.begin() + currNode->end, [&](uint32_t a, uint32_t b) {
 				    return clusterGroups[a].pMin[longestAxis] < clusterGroups[b].pMin[longestAxis];
 				    });
 
-			    // ÑØ×î³¤Öá·Ö¸î
+			    // ï¿½ï¿½ï¿½î³¤ï¿½ï¿½Ö¸ï¿½
 			    int mid = (currNode->start + currNode->end) / 2;
 
-                // »ñÈ¡µÚ¶ş³¤Öá
+                // ï¿½ï¿½È¡ï¿½Ú¶ï¿½ï¿½ï¿½ï¿½ï¿½
                 int axis2 = (longestAxis + 1) % 3; 
                 int axis3 = (longestAxis + 2) % 3;
                 int secondLongestAxis = diff[axis2] > diff[axis3] ? axis2 : axis3;
 
-                // °´µÚ¶ş³¤ÖáÅÅĞò
+                // ï¿½ï¿½ï¿½Ú¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                 std::sort(clusterGroupIndex.begin() + currNode->start, clusterGroupIndex.begin() + mid, [&](uint32_t a, uint32_t b) {
                     return clusterGroups[a].pMin[secondLongestAxis] < clusterGroups[b].pMin[secondLongestAxis];
 					});
@@ -913,7 +929,7 @@ namespace Nanite
                 }
             }
         }
-        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // Á½¸öÇòĞÄÖØºÏ
+        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Øºï¿½
             currNodeParentBoundingSphereCenter = glm::vec3(sphere1);
 			currNodeParentBoundingSphereRadius = glm::max(sphere1.w, sphere2.w);
         }
@@ -960,7 +976,7 @@ namespace Nanite
                 }
             }
         }
-        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // Á½¸öÇòĞÄÖØºÏ
+        if (glm::distance(glm::vec3(sphere1), glm::vec3(sphere2)) < FLT_EPSILON) { // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Øºï¿½
             currNodeParentBoundingSphereCenter = glm::vec3(sphere1);
             currNodeParentBoundingSphereRadius = glm::max(sphere1.w, sphere2.w);
         }

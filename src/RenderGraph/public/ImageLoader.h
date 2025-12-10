@@ -1,12 +1,12 @@
 #pragma once
 #include <vulkan/vulkan.hpp>
-#include <glm/vec3.hpp>
 #include <gli/gli.hpp>
 
-namespace vk
-{
-	enum class Format;
-}
+#include "Buffer.h"
+#include "Image.h"
+#include "PresentQueue.h"
+#include "RenderGraphLink.h"
+#include "Synchronization.h"
 
 namespace cyRenderGraph
 {
@@ -30,7 +30,8 @@ namespace cyRenderGraph
 		glm::uvec3 baseSize = {};
 
 		std::vector<Mip> mips;
-		std::vector<uint8_t> texels;
+		// 所有mip x layer的像素数据连续存放在texels中，通过offset索引
+		std::vector<uint8_t> texels; // 原始数据
 	};
 
 	/*
@@ -140,30 +141,10 @@ namespace cyRenderGraph
 				layer.offset = currOffset;
 
 				uint8_t* dstTexelsPtr = texelData.texels.data() + currOffset;
-				uint8_t* srcTexelsPtr = static_cast<uint8_t*>(texture.data(0, faceIndex, mipLevel));
+				// 原代码：(uint8_t*)(texture.data(0, faceIndex, mipLevel)) 会隐式调用const_cast，导致compiler error
+				uint8_t* srcTexelsPtr = static_cast<uint8_t*>(const_cast<void*>(texture.data(0, faceIndex, mipLevel)));
 
 				memcpy(dstTexelsPtr, srcTexelsPtr, mip.size.x * mip.size.y * mip.size.z * texelData.texelSize);
-				/*for (size_t z = 0; z < size.z; z++)
-				{
-				  for (size_t y = 0; y < size.y; y++)
-				  {
-				    for (size_t x = 0; x < size.x; x++)
-				    {
-				      size_t localOffset = (x + y * mip.size.x + z * mip.size.x * mip.size.y) * texelData.texelSize;
-		
-				      struct RGB32f
-				      {
-				        float r;
-				        float g;
-				        float b;
-				      };
-		
-				      RGB32f *srcTexelRgb32f = (RGB32f*)(srcTexelsPtr + localOffset);
-				      RGB32f *dstTexelRgb32f = (RGB32f*)(dstTexelsPtr + localOffset);
-				      *dstTexelRgb32f = *srcTexelRgb32f;
-				    }
-				  }
-				}*/
 				currOffset += mip.size.x * mip.size.y * texelData.texelSize;
 			}
 		}
@@ -211,6 +192,7 @@ namespace cyRenderGraph
 			}
 			break;
 		}
+		
 		//gli::target::target_type
 		gli::texture texture(gli::target::TARGET_2D, format, gli::extent3d(texelData.baseSize.x, texelData.baseSize.y, texelData.baseSize.z), texelData.layersCount, 1, texelData.mips.size());
 
@@ -234,11 +216,10 @@ namespace cyRenderGraph
 
 	static void SaveKtxToFile(const ImageTexelData& data, std::string filename)
 	{
-		auto gliData = legit::LoadTexelDataToGli(data);
+		auto gliData = LoadTexelDataToGli(data);
 		gli::save(gliData, filename);
 	}
-
-
+	
 	static size_t GetFormatSize(vk::Format format)
 	{
 		switch (format)
@@ -261,9 +242,9 @@ namespace cyRenderGraph
 		return -1;
 	}
 
-	static legit::ImageTexelData CreateSimpleImageTexelData(glm::uint8* pixels, int width, int height, vk::Format format = vk::Format::eR8G8B8A8Unorm)
+	static ImageTexelData CreateSimpleImageTexelData(glm::uint8* pixels, int width, int height, vk::Format format = vk::Format::eR8G8B8A8Unorm)
 	{
-		legit::ImageTexelData texelData;
+		ImageTexelData texelData;
 		texelData.baseSize = glm::uvec3(width, height, 1);
 		texelData.format = format;
 		texelData.layersCount = 1;
@@ -277,9 +258,8 @@ namespace cyRenderGraph
 		memcpy(texelData.texels.data(), pixels, totalSize);
 		return texelData;
 	}
-
-
-	static void AddTransitionBarrier(legit::ImageData* imageData, legit::ImageUsageTypes srcUsageType, legit::ImageUsageTypes dstUsageType, vk::CommandBuffer commandBuffer)
+	
+	static void AddTransitionBarrier(ImageData* imageData, ImageUsageTypes srcUsageType, ImageUsageTypes dstUsageType, vk::CommandBuffer commandBuffer)
 	{
 		auto srcImageAccessPattern = GetSrcImageAccessPattern(srcUsageType);
 		auto dstImageAccessPattern = GetDstImageAccessPattern(dstUsageType);
@@ -306,9 +286,9 @@ namespace cyRenderGraph
 		commandBuffer.pipelineBarrier(srcImageAccessPattern.stage, dstImageAccessPattern.stage, vk::DependencyFlags(), {}, {}, {imageBarrier});
 	}
 
-	static void LoadTexelData(legit::Core* core, const ImageTexelData* texelData, legit::ImageData* dstImageData, legit::ImageUsageTypes dstUsageType = legit::ImageUsageTypes::GraphicsShaderRead)
+	static void LoadTexelData(Core* core, const ImageTexelData* texelData, ImageData* dstImageData, ImageUsageTypes dstUsageType = ImageUsageTypes::GraphicsShaderRead)
 	{
-		auto stagingBuffer = std::unique_ptr<legit::Buffer>(new legit::Buffer(core->GetPhysicalDevice(), core->GetLogicalDevice(), texelData->texels.size(), vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
+		auto stagingBuffer = std::unique_ptr<Buffer>(new Buffer(core->GetPhysicalDevice(), core->GetLogicalDevice(), texelData->texels.size(), vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
 
 		void* bufferData = stagingBuffer->Map();
 		memcpy(bufferData, texelData->texels.data(), texelData->texels.size());
@@ -340,12 +320,12 @@ namespace cyRenderGraph
 			}
 		}
 
-		legit::ExecuteOnceQueue transferQueue(core);
+		ExecuteOnceQueue transferQueue(core);
 		auto transferCommandBuffer = transferQueue.BeginCommandBuffer();
 		{
-			AddTransitionBarrier(dstImageData, legit::ImageUsageTypes::None, legit::ImageUsageTypes::TransferDst, transferCommandBuffer);
+			AddTransitionBarrier(dstImageData, ImageUsageTypes::None, ImageUsageTypes::TransferDst, transferCommandBuffer);
 			transferCommandBuffer.copyBufferToImage(stagingBuffer->GetHandle(), dstImageData->GetHandle(), vk::ImageLayout::eTransferDstOptimal, copyRegions);
-			AddTransitionBarrier(dstImageData, legit::ImageUsageTypes::TransferDst, dstUsageType, transferCommandBuffer);
+			AddTransitionBarrier(dstImageData, ImageUsageTypes::TransferDst, dstUsageType, transferCommandBuffer);
 		}
 		transferQueue.EndCommandBuffer();
 	}

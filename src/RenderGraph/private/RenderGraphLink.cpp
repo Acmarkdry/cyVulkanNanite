@@ -56,8 +56,7 @@ namespace cyRenderGraph
     this->descriptorSetCache.reset(new DescriptorSetCache(logicalDevice.get()));
     this->pipelineCache.reset(new PipelineCache(logicalDevice.get(), this->descriptorSetCache.get()));
 	
-	// TODO 加回来
-    //this->renderGraph.reset(new RenderGraph(physicalDevice, logicalDevice.get(), loader));
+    this->renderGraph.reset(new RenderGraph(physicalDevice, logicalDevice.get(), loader));
   }
   Core::~Core()
   {

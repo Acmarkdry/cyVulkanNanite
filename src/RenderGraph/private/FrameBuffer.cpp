@@ -5,7 +5,7 @@ vk::Framebuffer cyRenderGraph::Framebuffer::GetHandle()
 	return framebuffer.get();
 }
 
-cyRenderGraph::Framebuffer::Framebuffer(vk::Device logicalDevice, const std::vector<ImageView*> &imageViews, vk::Extent2D size, vk::RenderPass renderPass)
+cyRenderGraph::Framebuffer::Framebuffer(vk::Device logicalDevice, const std::vector<const ImageView*> &imageViews, vk::Extent2D size, vk::RenderPass renderPass)
 {
 	std::vector<vk::ImageView> imageViewHandles;
 	for (auto imageView : imageViews)

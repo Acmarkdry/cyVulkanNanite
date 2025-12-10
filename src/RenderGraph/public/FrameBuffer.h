@@ -9,7 +9,7 @@ namespace cyRenderGraph
 	{
 	public:
 		vk::Framebuffer GetHandle();
-		Framebuffer(vk::Device logicalDevice, const std::vector<ImageView*> &imageViews, vk::Extent2D size, vk::RenderPass renderPass);
+		Framebuffer(vk::Device logicalDevice, const std::vector<const ImageView*> &imageViews, vk::Extent2D size, vk::RenderPass renderPass);
 	private:
 		vk::UniqueFramebuffer framebuffer;
 	};

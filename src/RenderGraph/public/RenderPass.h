@@ -16,6 +16,10 @@ namespace vk
 	}
 }
 
+/*
+ * renderpass内部自己不负责对于barrier的管理，这样可以提高render pass的复用率
+ * 而且render pass本质就是meta data
+ */
 namespace cyRenderGraph
 {
 	struct AttachmentDesc
@@ -34,7 +38,10 @@ namespace cyRenderGraph
 	{
 	public:
 		RenderPass(vk::Device logicalDevice, std::vector<AttachmentDesc> _colorAttachments, AttachmentDesc _depthAttachment);
-
+		vk::RenderPass GetHandle()
+		{
+			return renderPass.get();
+		}
 	private:
 		vk::UniqueRenderPass renderPass;
 		std::vector<AttachmentDesc> colorAttachmentDescs;
