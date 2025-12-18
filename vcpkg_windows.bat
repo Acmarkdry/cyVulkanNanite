@@ -35,7 +35,8 @@ pause
 
 @REM exit /b
 
-@REM :error
+:error
+pause
 @REM echo Failed with error #%errorlevel%.
 @REM exit /b %errorlevel%
 
