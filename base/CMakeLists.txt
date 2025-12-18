@@ -3,6 +3,8 @@
 
 file(GLOB BASE_SRC "*.cpp" "*.hpp" "*.h" "../external/imgui/*.cpp")
 file(GLOB BASE_HEADERS "*.hpp" "*.h")
+file(GLOB NaniteMesh "../src/NaniteMesh/*.cpp" "../src/NaniteMesh/*.h")
+file(GLOB Common "../src/*.cpp" "../src/*.h")
 
 set(KTX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../external/ktx)
 set(KTX_SOURCES
@@ -14,7 +16,7 @@ set(KTX_SOURCES
     ${KTX_DIR}/lib/filestream.c
     ${KTX_DIR}/lib/vkloader.c)
 
-add_library(base STATIC ${BASE_SRC} ${KTX_SOURCES})
+add_library(base STATIC ${BASE_SRC} ${KTX_SOURCES} ${Common} ${NaniteMesh})
 if(WIN32)
     target_link_libraries(base ${Vulkan_LIBRARY} ${WINLIBS})
  else(WIN32)
