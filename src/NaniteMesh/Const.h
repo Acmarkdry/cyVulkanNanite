@@ -7,7 +7,7 @@ namespace Nanite
     class Graph
     {
     public:
-        std::vector<uint32_t, std::unordered_map<int, uint32_t>> adjMap;
+        std::vector<std::unordered_map<int, uint32_t>> adjMap;
         
         
     };

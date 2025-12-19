@@ -1,9 +1,10 @@
-#include "NaniteMesh.h"
+﻿#include "NaniteMesh.h"
 
 #include <queue>
 
 #include "BVH.h"
 #include "NaniteLodMesh.h"
+#include "../utils.h"
 
 namespace Nanite
 {
@@ -116,7 +117,7 @@ namespace Nanite
         }
         else
         {
-            NaniteAssert(0, "Invalid file path, no ext");
+	        NaniteAssert(false, "Invalid file path, no ext");
         }
 
         if (useCache)

@@ -3,7 +3,7 @@
 #include <iostream>
 #include <format>  // C++20
 
-namespace NaniteMesh {
+namespace Nanite {
 
 	// 断言函数
 	inline void NaniteAssert(
