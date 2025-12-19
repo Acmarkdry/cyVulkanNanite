@@ -283,6 +283,9 @@ namespace vkglTF
 		std::vector<Material> materials;
 		std::vector<Animation> animations;
 
+		std::vector<uint32_t> indexBuffer;
+		std::vector<Vertex> vertexBuffer;
+
 		struct Dimensions {
 			glm::vec3 min = glm::vec3(FLT_MAX);
 			glm::vec3 max = glm::vec3(-FLT_MAX);

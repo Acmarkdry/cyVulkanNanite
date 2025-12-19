@@ -3,10 +3,10 @@
 #include <iostream>
 #include <format>  // C++20
 
-namespace utils {
+namespace NaniteMesh {
 
 	// 断言函数
-	inline void assert(
+	inline void NaniteAssert(
 		bool condition,
 		std::string_view message,
 		const std::source_location& loc = std::source_location::current()
