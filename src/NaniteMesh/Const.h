@@ -1,15 +1,34 @@
 ﻿#pragma once
 #include <unordered_map>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
+#include "metis.h"
 
 namespace Nanite
 {
+	constexpr const int ClusterTargetSize = 56;
+	constexpr const int ClusterMaxSize = 64;
+	constexpr const int ClusterGroupTargetSize = 15;
+	constexpr const int ClusterGroupMaxSize = 32;
+	
     class Graph
     {
     public:
         std::vector<std::unordered_map<int, uint32_t>> adjMap;
         
-        
+        void resize(uint32_t newSize);
+        void addEdge(uint32_t from, uint32_t to, int cost);
+        void addEdgeCost(uint32_t from, uint32_t to, int cost);
+    };
+    
+    class MetisGraph
+    {
+    public:
+    	idx_t nvtxs;
+    	std::vector<idx_t> xadj;
+    	std::vector<idx_t> adjncy;
+    	std::vector<idx_t> adjwgt;
+    	
+    	static MetisGraph GraphToMetisGraph(const Graph& graph);
     };
 
     // 启用normal和texcoord2d
