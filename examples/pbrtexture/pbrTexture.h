@@ -19,6 +19,7 @@ class PBRTexture: public VulkanExampleBase
 		vks::Texture2D aoMap;
 		vks::Texture2D metallicMap;
 		vks::Texture2D roughnessMap;
+		vks::Texture2D hizBuffer;
 	} textures{};
 
 	struct Meshes {
@@ -112,5 +113,9 @@ class PBRTexture: public VulkanExampleBase
 	void buildCommandBuffer();
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
+
+	void createHizBuffer();
 	
+private:
+	std::vector<VkImageView> hizImageViews;
 };

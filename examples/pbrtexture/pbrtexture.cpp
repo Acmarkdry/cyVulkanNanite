@@ -9,6 +9,8 @@
 // For reference see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 
 #include "pbrTexture.h"
+#include "VulkanDescriptorManager.h"
+#include "../../src/vksTools.h"
 
 
 void PBRTexture::getEnabledFeatures()
@@ -40,6 +42,8 @@ void PBRTexture::loadAssets()
 
 void PBRTexture::setupDescriptors()
 {
+	auto descriptorMgr = VulkanDescriptorManager::getManager();
+	
 	// Descriptor Pool
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 4),
@@ -122,6 +126,7 @@ void PBRTexture::setupDescriptors()
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0,
 		                       nullptr);
 	}
+	
 }
 
 void PBRTexture::preparePipelines()
@@ -1330,7 +1335,7 @@ void PBRTexture::buildCommandBuffer()
 
 	vkCmdEndRenderPass(cmdBuffer);
 
-	VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
+	VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer))
 }
 
 void PBRTexture::render()
@@ -1351,4 +1356,96 @@ void PBRTexture::OnUpdateUIOverlay(vks::UIOverlay* overlay)
 		overlay->inputFloat("Gamma", &uniformDataParams.gamma, 0.1f, 2);
 		overlay->checkBox("Skybox", &displaySkybox);
 	}
+}
+
+void PBRTexture::createHizBuffer()
+{
+	uint32_t mipmipLevels = std::floor(std::log2(std::max(width, height))) + 1;
+	textures.hizBuffer.mipLevels = mipmipLevels;
+
+	VkImageCreateInfo imageCreateInfo = vks::initializers::imageCreateInfo();
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.format = VK_FORMAT_R32_SFLOAT;
+	imageCreateInfo.extent.width = width;
+	imageCreateInfo.extent.height = height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = mipmipLevels;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	// 采样mipmap，也会作为起点，同时storage传给下一个
+	imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	VK_CHECK_RESULT(vkCreateImage(device, &imageCreateInfo, nullptr, &textures.hizBuffer.image));
+	
+	VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(device, textures.hizBuffer.image, &memRequirements);
+	memAlloc.allocationSize = memRequirements.size;
+	memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &textures.hizBuffer.deviceMemory));
+	VK_CHECK_RESULT(vkBindImageMemory(device, textures.hizBuffer.image, textures.hizBuffer.deviceMemory, 0));
+
+	VkImageViewCreateInfo viewCreateInfo = vks::initializers::imageViewCreateInfo();
+	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewCreateInfo.format = VK_FORMAT_R32_SFLOAT;
+	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewCreateInfo.subresourceRange.levelCount = mipmipLevels;
+	viewCreateInfo.subresourceRange.layerCount = 1;
+	viewCreateInfo.image = textures.hizBuffer.image;
+	VK_CHECK_RESULT(vkCreateImageView(device, &viewCreateInfo, nullptr, &textures.hizBuffer.view));
+
+	// 涉及采样，所以要单独再开一个采样器
+	VkSamplerCreateInfo samplerCreateInfo = vks::initializers::samplerCreateInfo();
+	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	// hiz需要保守剔除
+	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+	// 需要确保shader里面进行了multi sample
+	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	samplerCreateInfo.maxLod = mipmipLevels;
+	samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	// 关闭各向异性
+	samplerCreateInfo.anisotropyEnable = VK_FALSE;
+	samplerCreateInfo.maxAnisotropy = 1.0f;
+	
+	VK_CHECK_RESULT(vkCreateSampler(device, &samplerCreateInfo, nullptr, &textures.hizBuffer.sampler));
+	
+	textures.hizBuffer.descriptor.imageView = textures.hizBuffer.view;
+	textures.hizBuffer.descriptor.sampler = textures.hizBuffer.sampler;
+	textures.hizBuffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	textures.hizBuffer.device = vulkanDevice;
+	
+	// 开始创建每个子一级别的level
+	for (int i = 0; i < mipmipLevels; ++i)
+	{
+		VkImageView mipView;
+		VkImageViewCreateInfo mipViewCreateInfo = vks::initializers::imageViewCreateInfo();
+		mipViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		mipViewCreateInfo.format = VK_FORMAT_R32_SFLOAT;
+		mipViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		mipViewCreateInfo.subresourceRange.levelCount = 1;
+		mipViewCreateInfo.subresourceRange.layerCount = 1;
+		mipViewCreateInfo.subresourceRange.baseMipLevel = i;
+		mipViewCreateInfo.image = textures.hizBuffer.image;
+
+		VK_CHECK_RESULT(vkCreateImageView(device, &mipViewCreateInfo, nullptr, &mipView));
+		hizImageViews.emplace_back(mipView);
+	}
+
+	//修改imagelayuout
+	VkCommandBuffer cmdBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+	// 决定update imagelayout的粒度
+	VkImageSubresourceRange subResourceRange = {
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel = 0,
+		.layerCount = 1,
+	};
+	subResourceRange.levelCount = textures.hizBuffer.mipLevels;
+
+	vks::tools::setImageLayout(cmdBuffer, textures.hizBuffer.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subResourceRange);
+
+	vulkanDevice->flushCommandBuffer(cmdBuffer, queue, true);
+	vkDeviceWaitIdle(device);
 }
