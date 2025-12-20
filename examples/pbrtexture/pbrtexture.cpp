@@ -43,88 +43,45 @@ void PBRTexture::loadAssets()
 void PBRTexture::setupDescriptors()
 {
 	auto descriptorMgr = VulkanDescriptorManager::getManager();
-	
-	// Descriptor Pool
-	std::vector<VkDescriptorPoolSize> poolSizes = {
-		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames * 4),
-		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames * 16)
-	};
-	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(
-		poolSizes, maxConcurrentFrames * 2);
-	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
-
-	// Descriptor set layout
-	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {};
+	setLayoutBindings = {
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		                                              VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0),
+												  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT,
-		                                              1),
+													  1),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 2),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 2),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 3),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 3),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 4),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 4),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 5),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 5),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 6),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 6),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 7),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 7),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 8),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 8),
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		                                              VK_SHADER_STAGE_FRAGMENT_BIT, 9),
+													  VK_SHADER_STAGE_FRAGMENT_BIT, 9),
 	};
-	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(
-		setLayoutBindings);
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+	descriptorMgr->addSetLayout("pbrtexture", setLayoutBindings, 6);
 
-	// Sets per frame, just like the buffers themselves
-	// Images do not need to be duplicated per frame, we reuse the same one for each frame
-	VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(
-		descriptorPool, &descriptorSetLayout, 1);
-	for (auto i = 0; i < uniformBuffers.size(); i++)
+	descriptorMgr->createLayoutsAndSets(device);
+
 	{
 		// Scene
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].scene));
-		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
-			                                      &uniformBuffers[i].scene.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-			                                      &uniformBuffers[i].params.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2,
-			                                      &textures.irradianceCube.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3,
-			                                      &textures.lutBrdf.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4,
-			                                      &textures.prefilteredCube.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5,
-			                                      &textures.albedoMap.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6,
-			                                      &textures.normalMap.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 7,
-			                                      &textures.aoMap.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8,
-			                                      &textures.metallicMap.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 9,
-			                                      &textures.roughnessMap.descriptor),
-		};
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0,
-		                       nullptr);
-
-		// Sky box
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i].skybox));
-		writeDescriptorSets = {
-			vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0,
-			                                      &uniformBuffers[i].skybox.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-			                                      &uniformBuffers[i].params.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSets[i].skybox, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			                                      2, &textures.environmentCube.descriptor),
-		};
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0,
-		                       nullptr);
+		descriptorMgr->writeToSet("pbrtexture", 0, 0, &uniformBuffers.scene.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 1, &uniformBuffers.params.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 2, &textures.irradianceCube.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 3, &textures.lutBrdf.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 4, &textures.prefilteredCube.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 5, &textures.albedoMap.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 6, &textures.normalMap.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 7, &textures.aoMap.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 8, &textures.metallicMap.descriptor);
+		descriptorMgr->writeToSet("pbrtexture", 0, 9, &textures.roughnessMap.descriptor);
 	}
 	
 }
@@ -1216,8 +1173,8 @@ void PBRTexture::generatePrefilteredCube()
 // Prepare and initialize uniform buffer containing shader uniforms
 void PBRTexture::prepareUniformBuffers()
 {
-	for (auto& buffer : uniformBuffers)
-	{
+	auto buffer = uniformBuffers;
+
 		// Scene matrices uniform buffer
 		VK_CHECK_RESULT(
 			vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -1233,7 +1190,7 @@ void PBRTexture::prepareUniformBuffers()
 			vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer.params, sizeof(UniformDataParams)));
 		VK_CHECK_RESULT(buffer.params.map());
-	}
+	
 }
 
 void PBRTexture::updateUniformBuffers()
@@ -1243,11 +1200,11 @@ void PBRTexture::updateUniformBuffers()
 	uniformDataMatrices.view = camera.matrices.view;
 	uniformDataMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	uniformDataMatrices.camPos = camera.position * -1.0f;
-	memcpy(uniformBuffers[currentBuffer].scene.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
+	memcpy(uniformBuffers.scene.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
 
 	// Skybox
 	uniformDataMatrices.model = glm::mat4(glm::mat3(camera.matrices.view));
-	memcpy(uniformBuffers[currentBuffer].skybox.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
+	memcpy(uniformBuffers.skybox.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
 
 	// PBR parameters
 	constexpr float p = 15.0f;
@@ -1256,7 +1213,7 @@ void PBRTexture::updateUniformBuffers()
 	uniformDataParams.lights[2] = glm::vec4(p, -p * 0.5f, p, 1.0f);
 	uniformDataParams.lights[3] = glm::vec4(p, -p * 0.5f, -p, 1.0f);
 
-	memcpy(uniformBuffers[currentBuffer].params.mapped, &uniformDataParams, sizeof(UniformDataParams));
+	memcpy(uniformBuffers.params.mapped, &uniformDataParams, sizeof(UniformDataParams));
 }
 
 void PBRTexture::prepare()
@@ -1320,14 +1277,14 @@ void PBRTexture::buildCommandBuffer()
 	if (displaySkybox)
 	{
 		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-		                        &descriptorSets[currentBuffer].skybox, 0, nullptr);
+		                        &descriptorSets.skybox, 0, nullptr);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.skybox);
 		models.skybox.draw(cmdBuffer);
 	}
 
 	// Objects
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-	                        &descriptorSets[currentBuffer].scene, 0, nullptr);
+	                        &descriptorSets.scene, 0, nullptr);
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.pbr);
 	models.object.draw(cmdBuffer);
 
