@@ -2,6 +2,8 @@
 
 void VulkanDescriptorManager::destroy()
 {
+	auto instance = VulkanDescriptorManager::getManager();
+	
 	if (instance != nullptr)
 	{
 		for (auto &[_, layout]: instance->descriptorSetLayouts)

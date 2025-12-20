@@ -31,8 +31,7 @@ class PBRTexture: public VulkanExampleBase
 		vks::Buffer scene;
 		vks::Buffer skybox;
 		vks::Buffer params;
-	};
-	std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers;
+	} uniformBuffers;
 
 	struct UniformDataMatrices {
 		glm::mat4 projection;
@@ -57,8 +56,7 @@ class PBRTexture: public VulkanExampleBase
 	struct DescriptorSets {
 		VkDescriptorSet scene{ VK_NULL_HANDLE };
 		VkDescriptorSet skybox{ VK_NULL_HANDLE };
-	};
-	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets{};
+	} descriptorSets;
 
 	PBRTexture() : VulkanExampleBase()
 	{
@@ -87,11 +85,11 @@ class PBRTexture: public VulkanExampleBase
 			textures.aoMap.destroy();
 			textures.metallicMap.destroy();
 			textures.roughnessMap.destroy();
-			for (auto& buffer : uniformBuffers) {
-				buffer.scene.destroy();
-				buffer.params.destroy();
-				buffer.skybox.destroy();
-			}
+			textures.hizBuffer.destroy();
+			
+			uniformBuffers.scene.destroy();
+			uniformBuffers.skybox.destroy();
+			uniformBuffers.params.destroy();
 		}
 	}
 
