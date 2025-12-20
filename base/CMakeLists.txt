@@ -24,10 +24,6 @@ set(KTX_SOURCES
 
 add_library(base STATIC ${BASE_SRC} ${KTX_SOURCES} ${Common} ${NaniteMesh})
 
-# # ========================================================
-# # [关键修复] 静态库必须定义 OM_STATIC_BUILD
-# # ========================================================
-# target_compile_definitions(base PUBLIC OM_STATIC_BUILD)
 
 if(WIN32)
     target_link_libraries(base PUBLIC 

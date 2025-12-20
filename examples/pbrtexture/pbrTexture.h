@@ -1,0 +1,116 @@
+#pragma once
+#include "vulkanexamplebase.h"
+#include "VulkanglTFModel.h"
+
+class PBRTexture: public VulkanExampleBase
+{
+	public:
+		bool displaySkybox = true;
+
+	struct Textures {
+		vks::TextureCubeMap environmentCube;
+		// Generated at runtime
+		vks::Texture2D lutBrdf;
+		vks::TextureCubeMap irradianceCube;
+		vks::TextureCubeMap prefilteredCube;
+		// Object texture maps
+		vks::Texture2D albedoMap;
+		vks::Texture2D normalMap;
+		vks::Texture2D aoMap;
+		vks::Texture2D metallicMap;
+		vks::Texture2D roughnessMap;
+	} textures{};
+
+	struct Meshes {
+		vkglTF::Model skybox;
+		vkglTF::Model object;
+	} models;
+
+	struct UniformBuffers {
+		vks::Buffer scene;
+		vks::Buffer skybox;
+		vks::Buffer params;
+	};
+	std::array<UniformBuffers, maxConcurrentFrames> uniformBuffers;
+
+	struct UniformDataMatrices {
+		glm::mat4 projection;
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::vec3 camPos;
+	} uniformDataMatrices;
+
+	struct UniformDataParams {
+		glm::vec4 lights[4];
+		float exposure = 4.5f;
+		float gamma = 2.2f;
+	} uniformDataParams;
+
+	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
+	struct {
+		VkPipeline skybox{ VK_NULL_HANDLE };
+		VkPipeline pbr{ VK_NULL_HANDLE };
+	} pipelines;
+
+	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
+	struct DescriptorSets {
+		VkDescriptorSet scene{ VK_NULL_HANDLE };
+		VkDescriptorSet skybox{ VK_NULL_HANDLE };
+	};
+	std::array<DescriptorSets, maxConcurrentFrames> descriptorSets{};
+
+	PBRTexture() : VulkanExampleBase()
+	{
+		title = "Textured PBR with IBL";
+		camera.type = Camera::CameraType::firstperson;
+		camera.movementSpeed = 4.0f;
+		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
+		camera.rotationSpeed = 0.25f;
+		camera.setRotation({ -7.75f, 150.25f, 0.0f });
+		camera.setPosition({ 0.7f, 0.1f, 1.7f });
+	}
+
+	~PBRTexture()
+	{
+		if (device) {
+			vkDestroyPipeline(device, pipelines.skybox, nullptr);
+			vkDestroyPipeline(device, pipelines.pbr, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+			textures.environmentCube.destroy();
+			textures.irradianceCube.destroy();
+			textures.prefilteredCube.destroy();
+			textures.lutBrdf.destroy();
+			textures.albedoMap.destroy();
+			textures.normalMap.destroy();
+			textures.aoMap.destroy();
+			textures.metallicMap.destroy();
+			textures.roughnessMap.destroy();
+			for (auto& buffer : uniformBuffers) {
+				buffer.scene.destroy();
+				buffer.params.destroy();
+				buffer.skybox.destroy();
+			}
+		}
+	}
+
+	virtual void getEnabledFeatures() override;
+	void loadAssets();
+	void setupDescriptors();
+	void preparePipelines();
+	// Generate a BRDF integration map used as a look-up-table (stores roughness / NdotV)
+	void generateBRDFLUT();
+	// Generate an irradiance cube map from the environment cube map
+	void generateIrradianceCube();
+	// Prefilter environment cubemap
+	// See https://placeholderart.wordpress.com/2015/07/28/implementation-notes-runtime-environment-map-filtering-for-image-based-lighting/
+	void generatePrefilteredCube();
+	// Prepare and initialize uniform buffer containing shader uniforms
+	void prepareUniformBuffers();
+	void updateUniformBuffers();
+	void prepare();
+	void buildCommandBuffer();
+	virtual void render();
+	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
+	
+};

@@ -168,6 +168,8 @@ public:
 
 	vks::Benchmark benchmark;
 
+	VkQueue& GetQueue(){return queue;}
+
 	/** @brief Encapsulated physical and logical vulkan device */
 	vks::VulkanDevice *vulkanDevice{};
 

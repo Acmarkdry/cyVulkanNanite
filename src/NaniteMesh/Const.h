@@ -39,20 +39,20 @@ namespace Nanite
 
     typedef OpenMesh::TriMesh_ArrayKernelT<NaniteOpenMeshTraits> NaniteTriMesh;
 
-    void TestNaniteTriMesh()
-    {
-        NaniteTriMesh mesh;
-        NaniteTriMesh::VertexHandle vh1 = mesh.add_vertex(NaniteTriMesh::Point(0,0,0));
-
-        mesh.set_normal(vh1, NaniteTriMesh::Normal(0,0,1));
-        mesh.set_texcoord2D(vh1, NaniteTriMesh::TexCoord2D(0,0));
-        std::vector<NaniteTriMesh::VertexHandle> face_handles;
-        face_handles.emplace_back(vh1);
-        face_handles.emplace_back(vh1);
-        face_handles.emplace_back(vh1);
-
-        mesh.add_face(face_handles);
-    }
+    // void TestNaniteTriMesh();
+    // {
+    //     NaniteTriMesh mesh;
+    //     NaniteTriMesh::VertexHandle vh1 = mesh.add_vertex(NaniteTriMesh::Point(0,0,0));
+    //
+    //     mesh.set_normal(vh1, NaniteTriMesh::Normal(0,0,1));
+    //     mesh.set_texcoord2D(vh1, NaniteTriMesh::TexCoord2D(0,0));
+    //     std::vector<NaniteTriMesh::VertexHandle> face_handles;
+    //     face_handles.emplace_back(vh1);
+    //     face_handles.emplace_back(vh1);
+    //     face_handles.emplace_back(vh1);
+    //
+    //     mesh.add_face(face_handles);
+    // }
 
     // 会传入给shader
     class ClusterInfo
