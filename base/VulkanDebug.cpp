@@ -25,6 +25,12 @@ namespace vks
 		{
 			// Select prefix depending on flags passed to the callback
 			std::string prefix;
+			if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+			{
+				#ifdef _MSC_VER
+				__debugbreak();
+				#endif
+			}
 
 			if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
 #if defined(_WIN32)
