@@ -85,7 +85,7 @@ class PBRTexture: public VulkanExampleBase
 			textures.aoMap.destroy();
 			textures.metallicMap.destroy();
 			textures.roughnessMap.destroy();
-			textures.hizBuffer.destroy();
+			// textures.hizBuffer.destroy();
 			
 			uniformBuffers.scene.destroy();
 			uniformBuffers.skybox.destroy();
@@ -107,9 +107,11 @@ class PBRTexture: public VulkanExampleBase
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers();
 	void updateUniformBuffers();
+	void updateParams();
 	void prepare();
-	void buildCommandBuffer();
+	void buildCommandBuffers();
 	virtual void render();
+	virtual void viewChanged() override;
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
 
 	void createHizBuffer();
