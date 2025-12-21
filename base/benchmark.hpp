@@ -1,7 +1,7 @@
 /*
-* Benchmark class - Can be used for automated benchmarks
+* Benchmark class
 *
-* Copyright (C) 2016-2025 by Sascha Willems - www.saschawillems.de
+* Copyright (C) 2016-2017 by Sascha Willems - www.saschawillems.de
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
@@ -18,13 +18,13 @@ namespace vks
 {
 	class Benchmark {
 	private:
-		FILE* stream{ nullptr };
-		VkPhysicalDeviceProperties deviceProps{};
+		FILE *stream;
+		VkPhysicalDeviceProperties deviceProps;
 	public:
 		bool active = false;
 		bool outputFrameTimes = false;
 		int outputFrames = -1; // -1 means no frames limit
-		uint32_t warmup = 1;   // Default to 1 sec of warm-up
+		uint32_t warmup = 1;
 		uint32_t duration = 10;
 		std::vector<double> frameTimes;
 		std::string filename = "";
@@ -36,15 +36,12 @@ namespace vks
 			active = true;
 			this->deviceProps = deviceProps;
 #if defined(_WIN32)
-			bool consoleAttached = AttachConsole(ATTACH_PARENT_PROCESS);
-			if (!consoleAttached) {
-				consoleAttached = AttachConsole(GetCurrentProcessId());
-			}
-			if (consoleAttached) {
-				freopen_s(&stream, "CONOUT$", "w+", stdout);
-				freopen_s(&stream, "CONOUT$", "w+", stderr);
-			}
+			AttachConsole(ATTACH_PARENT_PROCESS);
+			freopen_s(&stream, "CONOUT$", "w+", stdout);
+			freopen_s(&stream, "CONOUT$", "w+", stderr);
 #endif
+			std::cout << std::fixed << std::setprecision(3);
+
 			// Warm up phase to get more stable frame rates
 			{
 				double tMeasured = 0.0;
@@ -67,8 +64,7 @@ namespace vks
 					frameCount++;
 					if (outputFrames != -1 && outputFrames == frameCount) break;
 				};
-				std::cout << std::fixed << std::setprecision(3);
-				std::cout << "Benchmark finished\n";
+				std::cout << "Benchmark finished" << "\n";
 				std::cout << "device : " << deviceProps.deviceName << " (driver version: " << deviceProps.driverVersion << ")" << "\n";
 				std::cout << "runtime: " << (runtime / 1000.0) << "\n";
 				std::cout << "frames : " << frameCount << "\n";

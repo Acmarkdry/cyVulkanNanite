@@ -6,13 +6,6 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-/*
- * Note that this isn't a complete glTF loader and not all features of the glTF 2.0 spec are supported
- * For details on how glTF 2.0 works, see the official spec at https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
- *
- * If you are looking for a complete glTF implementation, check out https://github.com/SaschaWillems/Vulkan-glTF-PBR/
- */
-
 #pragma once
 
 #include <stdlib.h>
@@ -274,6 +267,9 @@ namespace vkglTF
 			VkDeviceMemory memory;
 		} indices;
 
+		std::vector<uint32_t> indexBuffer;
+		std::vector<Vertex> vertexBuffer;
+
 		std::vector<Node*> nodes;
 		std::vector<Node*> linearNodes;
 
@@ -282,9 +278,6 @@ namespace vkglTF
 		std::vector<Texture> textures;
 		std::vector<Material> materials;
 		std::vector<Animation> animations;
-
-		std::vector<uint32_t> indexBuffer;
-		std::vector<Vertex> vertexBuffer;
 
 		struct Dimensions {
 			glm::vec3 min = glm::vec3(FLT_MAX);
