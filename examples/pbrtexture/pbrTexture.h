@@ -1,4 +1,5 @@
 #pragma once
+#include "Pipeline.h"
 #include "vulkanexamplebase.h"
 #include "VulkanglTFModel.h"
 
@@ -53,8 +54,9 @@ class PBRTexture: public VulkanExampleBase
 		VkPipeline skybox{ VK_NULL_HANDLE };
 		VkPipeline pbr{ VK_NULL_HANDLE };
 	} pipelines;
+	
 
-	PBRTexture() : VulkanExampleBase()
+	PBRTexture() : VulkanExampleBase(true)
 	{
 		title = "Textured PBR with IBL";
 		camera.type = Camera::CameraType::firstperson;
@@ -89,7 +91,16 @@ class PBRTexture: public VulkanExampleBase
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
 
 	void createHizBuffer();
+	void setupDepthStencil() override;
 	
 private:
+	/*hiz buffer相关的类*/
 	std::vector<VkImageView> hizImageViews;
+	Pipeline hizComputePipeline;
+	
+	Pipeline depthCopyPipeline;
+	
+	Pipeline debugQuadPipeline;
+	
+	VkSampler depthStencilSampler;
 };
