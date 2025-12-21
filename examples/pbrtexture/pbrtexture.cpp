@@ -1527,9 +1527,6 @@ void PBRTexture::createHizBuffer()
 
 void PBRTexture::setupDepthStencil()
 {
-	VulkanExampleBase::setupDepthStencil();
-	return;
-	
 	VkImageCreateInfo imageCI{};
 	imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageCI.imageType = VK_IMAGE_TYPE_2D;
@@ -1578,7 +1575,7 @@ void PBRTexture::setupDepthStencil()
 	samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	VK_CHECK_RESULT(vkCreateSampler(device, &samplerCreateInfo, nullptr, &depthStencilSampler));
 	
-	VkCommandBuffer cmdBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+	VkCommandBuffer cmdBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 	VkImageSubresourceRange subResourceRange{};
 	subResourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 	subResourceRange.levelCount = 1;
@@ -1588,7 +1585,8 @@ void PBRTexture::setupDepthStencil()
 		cmdBuffer, depthStencil.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, subResourceRange
 	);
 	vulkanDevice->flushCommandBuffer(cmdBuffer, queue, true);
-	
+
+	vkDeviceWaitIdle(device);
 }
 
 
