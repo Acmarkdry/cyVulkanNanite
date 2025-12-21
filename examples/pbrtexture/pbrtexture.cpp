@@ -15,7 +15,7 @@
 
 PBRTexture::~PBRTexture()
 {
-	{
+	
 		if (device)
 		{
 			vkDestroyPipeline(device, pipelines.skybox, nullptr);
@@ -38,7 +38,7 @@ PBRTexture::~PBRTexture()
 			uniformBuffers.skybox.destroy();
 			uniformBuffers.params.destroy();
 		}
-	}
+	
 }
 
 void PBRTexture::getEnabledFeatures()
@@ -1383,9 +1383,6 @@ void PBRTexture::buildCommandBuffers()
 		models.object.draw(drawCmdBuffers[i]);
 
 		drawUI(drawCmdBuffers[i]);
-		
-		vkCmdEndRenderPass(drawCmdBuffers[i]);
-		
 
 		vkCmdEndRenderPass(drawCmdBuffers[i]);
 
@@ -1530,6 +1527,9 @@ void PBRTexture::createHizBuffer()
 
 void PBRTexture::setupDepthStencil()
 {
+	VulkanExampleBase::setupDepthStencil();
+	return;
+	
 	VkImageCreateInfo imageCI{};
 	imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageCI.imageType = VK_IMAGE_TYPE_2D;
