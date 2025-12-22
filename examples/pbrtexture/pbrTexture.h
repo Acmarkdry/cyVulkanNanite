@@ -93,7 +93,6 @@ class PBRTexture: public VulkanExampleBase
 	void createHizBuffer();
 	void setupDepthStencil() override;
 	
-private:
 	/*hiz buffer相关的类*/
 	std::vector<VkImageView> hizImageViews;
 	Pipeline hizComputePipeline;

@@ -314,7 +314,7 @@ namespace vks
 			return descriptorSetAllocateInfo;
 		}
 
-		inline VkDescriptorImageInfo descriptorImageInfo(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
+		inline VkDescriptorImageInfo descriptorImageInfo(VkSampler sampler = nullptr, VkImageView imageView = nullptr, VkImageLayout imageLayout = VK_IMAGE_LAYOUT_GENERAL)
 		{
 			VkDescriptorImageInfo descriptorImageInfo {};
 			descriptorImageInfo.sampler = sampler;

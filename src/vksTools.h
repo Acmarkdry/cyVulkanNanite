@@ -2,6 +2,7 @@
 #include "NaniteMesh/NaniteMesh.h"
 
 
+class PBRTexture;
 class VulkanExampleBase;
 
 namespace vks 
@@ -10,9 +11,12 @@ namespace vks
 	{
 		public:
 
-		void createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty, VkDeviceSize srcBufferSize,  void* srcBufferData, 
+		void static createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty, VkDeviceSize srcBufferSize,  void* srcBufferData, 
 				VkBufferUsageFlags targetMemoryProperty, Buffer &targetStaingBuffer);
 		
+		void static setPbrDescriptor(PBRTexture &pbrTexture);
+		
+		VkImageSubresourceRange static genDepthSubresourceRange();
 	};	
 }
 

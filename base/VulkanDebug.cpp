@@ -25,12 +25,6 @@ namespace vks
 		{
 			// Select prefix depending on flags passed to the callback
 			std::string prefix;
-			if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-			{
-				#ifdef _MSC_VER
-				__debugbreak();
-				#endif
-			}
 
 			if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
 #if defined(_WIN32)
@@ -77,7 +71,13 @@ namespace vks
 			fflush(stdout);
 #endif
 
-
+			if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+			{
+#ifdef _MSC_VER
+				__debugbreak();
+#endif
+			}
+			
 			// The return value of this callback controls whether the Vulkan call that caused the validation message will be aborted or not
 			// We return VK_FALSE as we DON'T want Vulkan calls that cause a validation message to abort
 			// If you instead want to have calls abort, pass in VK_TRUE and the function will return VK_ERROR_VALIDATION_FAILED_EXT 
