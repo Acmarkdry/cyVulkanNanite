@@ -1,0 +1,28 @@
+﻿#version 450
+
+#define work_group_size 8
+layout(local_size_x = work_group_size, local_size_y = work_group_size, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, r32f) uniform restrict readonly image2D inputImage;
+layout(set = 0, binding = 1, r32f) uniform restrict writeonly image2D outputImage;
+
+void main()
+{
+    // 坐标这里是ivec是为了避免坐标计算的时候进行减法运算导致出现一个巨大的正数
+    uvec2 coord = uvec2(gl_GlobalInvocationID.xy);
+    uvec2 outputSize = imageSize(outputImage).xy;
+
+    if(any(greaterThanEqual(coord, outputSize))) return;
+
+    float depth = 0.f;
+    ivec2 inputCoord = ivec2(coord*2);
+
+    const float d00 = imageLoad(inputImage, inputCoord).x;
+    const float d10 = imageLoad(inputImage, inputCoord + ivec2(1, 0)).x;
+    const float d01 = imageLoad(inputImage, inputCoord + ivec2(0, 1)).x;
+    const float d11 = imageLoad(inputImage, inputCoord + ivec2(1, 1)).x;
+    const float maxDepth = max(max(d00, d10), max(d01, d11));
+
+    imageStore(outputImage, ivec2(coord), vec4(maxDepth, vec3(0.0f)) );
+    
+}
