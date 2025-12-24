@@ -15,30 +15,28 @@
 
 PBRTexture::~PBRTexture()
 {
-	
-		if (device)
-		{
-			vkDestroyPipeline(device, pipelines.skybox, nullptr);
-			vkDestroyPipeline(device, pipelines.pbr, nullptr);
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			auto descMgr = VulkanDescriptorManager::getManager();
-			descMgr->destroy();
-			textures.environmentCube.destroy();
-			textures.irradianceCube.destroy();
-			textures.prefilteredCube.destroy();
-			textures.lutBrdf.destroy();
-			textures.albedoMap.destroy();
-			textures.normalMap.destroy();
-			textures.aoMap.destroy();
-			textures.metallicMap.destroy();
-			textures.roughnessMap.destroy();
-			// textures.hizBuffer.destroy();
+	if (device)
+	{
+		vkDestroyPipeline(device, pipelines.skybox, nullptr);
+		vkDestroyPipeline(device, pipelines.pbr, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		auto descMgr = VulkanDescriptorManager::getManager();
+		descMgr->destroy();
+		textures.environmentCube.destroy();
+		textures.irradianceCube.destroy();
+		textures.prefilteredCube.destroy();
+		textures.lutBrdf.destroy();
+		textures.albedoMap.destroy();
+		textures.normalMap.destroy();
+		textures.aoMap.destroy();
+		textures.metallicMap.destroy();
+		textures.roughnessMap.destroy();
+		// textures.hizBuffer.destroy();
 
-			uniformBuffers.scene.destroy();
-			uniformBuffers.skybox.destroy();
-			uniformBuffers.params.destroy();
-		}
-	
+		uniformBuffers.scene.destroy();
+		uniformBuffers.skybox.destroy();
+		uniformBuffers.params.destroy();
+	}
 }
 
 void PBRTexture::getEnabledFeatures()
@@ -51,53 +49,39 @@ void PBRTexture::getEnabledFeatures()
 
 void PBRTexture::loadAssets()
 {
-	constexpr uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices |
-		vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
+	constexpr uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 	models.skybox.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	models.object.loadFromFile(getAssetPath() + "models/cerberus/cerberus.gltf", vulkanDevice, queue, glTFLoadingFlags);
-	textures.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/gcanyon_cube.ktx",
-	                                      VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
-	textures.albedoMap.loadFromFile(getAssetPath() + "models/cerberus/albedo.ktx", VK_FORMAT_R8G8B8A8_UNORM,
-	                                vulkanDevice, queue);
-	textures.normalMap.loadFromFile(getAssetPath() + "models/cerberus/normal.ktx", VK_FORMAT_R8G8B8A8_UNORM,
-	                                vulkanDevice, queue);
+	textures.environmentCube.loadFromFile(getAssetPath() + "textures/hdr/gcanyon_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
+	textures.albedoMap.loadFromFile(getAssetPath() + "models/cerberus/albedo.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+	textures.normalMap.loadFromFile(getAssetPath() + "models/cerberus/normal.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
 	textures.aoMap.loadFromFile(getAssetPath() + "models/cerberus/ao.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
-	textures.metallicMap.loadFromFile(getAssetPath() + "models/cerberus/metallic.ktx", VK_FORMAT_R8_UNORM, vulkanDevice,
-	                                  queue);
-	textures.roughnessMap.loadFromFile(getAssetPath() + "models/cerberus/roughness.ktx", VK_FORMAT_R8_UNORM,
-	                                   vulkanDevice, queue);
+	textures.metallicMap.loadFromFile(getAssetPath() + "models/cerberus/metallic.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
+	textures.roughnessMap.loadFromFile(getAssetPath() + "models/cerberus/roughness.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
 }
 
 void PBRTexture::setupDescriptors()
-{	
+{
 	vks::vksTools::setPbrDescriptor(*this);
 }
 
 void PBRTexture::preparePipelines()
 {
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(
-		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
-	VkPipelineRasterizationStateCreateInfo rasterizationState = vks::initializers::pipelineRasterizationStateCreateInfo(
-		VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-	VkPipelineColorBlendAttachmentState blendAttachmentState =
-		vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-	VkPipelineColorBlendStateCreateInfo colorBlendState = vks::initializers::pipelineColorBlendStateCreateInfo(
-		1, &blendAttachmentState);
-	VkPipelineDepthStencilStateCreateInfo depthStencilState = vks::initializers::pipelineDepthStencilStateCreateInfo(
-		VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+	VkPipelineRasterizationStateCreateInfo rasterizationState = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+	VkPipelineColorBlendAttachmentState blendAttachmentState = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+	VkPipelineColorBlendStateCreateInfo colorBlendState = vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
+	VkPipelineDepthStencilStateCreateInfo depthStencilState = vks::initializers::pipelineDepthStencilStateCreateInfo(VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
 	VkPipelineViewportStateCreateInfo viewportState = vks::initializers::pipelineViewportStateCreateInfo(1, 1);
-	VkPipelineMultisampleStateCreateInfo multisampleState = vks::initializers::pipelineMultisampleStateCreateInfo(
-		VK_SAMPLE_COUNT_1_BIT);
+	VkPipelineMultisampleStateCreateInfo multisampleState = vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
 	std::vector<VkDynamicState> dynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-	VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(
-		dynamicStateEnables);
+	VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
 	auto descManager = VulkanDescriptorManager::getManager();
 
 	// Pipeline layout
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(
-		&descManager->getSetLayout(DescriptorType::Scene), 1);
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::Scene), 1);
 	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
 	// Pipelines
@@ -111,10 +95,7 @@ void PBRTexture::preparePipelines()
 	pipelineCI.pDynamicState = &dynamicState;
 	pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
 	pipelineCI.pStages = shaderStages.data();
-	pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({
-		vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::UV,
-		vkglTF::VertexComponent::Tangent
-	});
+	pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Tangent});
 
 	// Skybox pipeline (background cube)
 	rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
@@ -130,12 +111,12 @@ void PBRTexture::preparePipelines()
 	depthStencilState.depthWriteEnable = VK_TRUE;
 	depthStencilState.depthTestEnable = VK_TRUE;
 	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.pbr));
-	
+
 	// debug quad buffer 
 	{
 		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::debugQuad), 1);
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &debugQuadPipeline.pipelineLayout));
-		
+
 		pipelineCI.layout = debugQuadPipeline.pipelineLayout;
 		pipelineCI.renderPass = renderPass;
 		// 作为一个debug设置，关闭深度写入
@@ -150,29 +131,28 @@ void PBRTexture::preparePipelines()
 		pipelineCI.pStages = shaderStages.data();
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &debugQuadPipeline.pipeline));
 	}
-	
+
 	// hiz buffer
 	{
 		VkPipelineShaderStageCreateInfo computeShaderStage = loadShader(getShadersPath() + "pbrtexture/genHiz.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::hiz), 1);
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &hizComputePipeline.pipelineLayout));
-		
+
 		VkComputePipelineCreateInfo pipelineCreateInfo = vks::initializers::computePipelineCreateInfo(hizComputePipeline.pipelineLayout);
 		pipelineCreateInfo.stage = computeShaderStage;
-		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &hizComputePipeline.pipeline));
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &hizComputePipeline. pipeline));
 	}
-	
+
 	// depth copy
 	{
 		VkPipelineShaderStageCreateInfo computeShaderStage = loadShader(getShadersPath() + "pbrtexture/depthCopy.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::depthCopy), 1);
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &depthCopyPipeline.pipelineLayout));
-		
+
 		VkComputePipelineCreateInfo pipelineCreateInfo = vks::initializers::computePipelineCreateInfo(depthCopyPipeline.pipelineLayout);
 		pipelineCreateInfo.stage = computeShaderStage;
-		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &depthCopyPipeline.pipeline));
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &depthCopyPipeline.pipeline ));
 	}
-	
 }
 
 // Generate a BRDF integration map used as a look-up-table (stores roughness / NdotV)
@@ -198,25 +178,13 @@ void PBRTexture::generatePrefilteredCube()
 void PBRTexture::prepareUniformBuffers()
 {
 	// Object vertex shader uniform buffer
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&uniformBuffers.scene,
-		sizeof(uniformDataMatrices)));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer( VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffers.scene, sizeof(uniformDataMatrices)));
 
 	// Skybox vertex shader uniform buffer
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&uniformBuffers.skybox,
-		sizeof(uniformDataMatrices)));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer( VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffers.skybox, sizeof(uniformDataMatrices)));
 
 	// Shared parameter uniform buffer
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&uniformBuffers.params,
-		sizeof(uniformDataMatrices)));
+	VK_CHECK_RESULT(vulkanDevice->createBuffer( VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffers.params, sizeof(uniformDataMatrices)));
 
 	// Map persistent
 	VK_CHECK_RESULT(uniformBuffers.scene.map());
@@ -366,7 +334,7 @@ void PBRTexture::buildCommandBuffers()
 		vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipeline);
 		for (int j = 0; j < textures.hizBuffer.mipLevels - 1; j++)
 		{
-			vkCmdBindDescriptorSets(drawCmdBuffers[0], VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::hiz, j), 0, nullptr);
+			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::hiz, j), 0, nullptr);
 			vkCmdDispatch(drawCmdBuffers[i], (width + workgroupX - 1)/workgroupX, (height + workgroupY - 1) / workgroupY, 1);
 			
 			VkImageMemoryBarrier imageBarrier = vks::initializers::imageMemoryBarrier();
@@ -424,8 +392,7 @@ void PBRTexture::buildCommandBuffers()
 
 void PBRTexture::render()
 {
-	if (!prepared)
-		return;
+	if (!prepared) return;
 
 	prepareFrame();
 	submitInfo.commandBufferCount = 1;
@@ -486,8 +453,7 @@ void PBRTexture::createHizBuffer()
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(device, textures.hizBuffer.image, &memRequirements);
 	memAlloc.allocationSize = memRequirements.size;
-	memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memRequirements.memoryTypeBits,
-	                                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	memAlloc.memoryTypeIndex = vulkanDevice->getMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &textures.hizBuffer.deviceMemory));
 	VK_CHECK_RESULT(vkBindImageMemory(device, textures.hizBuffer.image, textures.hizBuffer.deviceMemory, 0));
 
@@ -543,15 +509,10 @@ void PBRTexture::createHizBuffer()
 	//修改imagelayuout
 	VkCommandBuffer cmdBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 	// 决定update imagelayout的粒度
-	VkImageSubresourceRange subResourceRange = {
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.baseMipLevel = 0,
-		.layerCount = 1,
-	};
+	VkImageSubresourceRange subResourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .layerCount = 1,};
 	subResourceRange.levelCount = textures.hizBuffer.mipLevels;
 
-	vks::tools::setImageLayout(cmdBuffer, textures.hizBuffer.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
-	                           subResourceRange);
+	vks::tools::setImageLayout(cmdBuffer, textures.hizBuffer.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subResourceRange);
 
 	vulkanDevice->flushCommandBuffer(cmdBuffer, queue, true);
 	vkDeviceWaitIdle(device);
@@ -563,7 +524,7 @@ void PBRTexture::setupDepthStencil()
 	imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageCI.imageType = VK_IMAGE_TYPE_2D;
 	imageCI.format = depthFormat;
-	imageCI.extent = { width, height, 1 };
+	imageCI.extent = {width, height, 1};
 	imageCI.mipLevels = 1;
 	imageCI.arrayLayers = 1;
 	imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -595,14 +556,14 @@ void PBRTexture::setupDepthStencil()
 	imageViewCI.subresourceRange.baseArrayLayer = 0;
 	imageViewCI.subresourceRange.layerCount = 1;
 	imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	
+
 	// 不能同时设置depth和stencil 
 	// Stencil aspect should only be set on depth + stencil formats (VK_FORMAT_D16_UNORM_S8_UINT..VK_FORMAT_D32_SFLOAT_S8_UINT
 	// if (depthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {
 	// 	imageViewCI.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 	// }
-	VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &depthStencil.view));	
-	
+	VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &depthStencil.view));
+
 	VkSamplerCreateInfo samplerCreateInfo = vks::initializers::samplerCreateInfo();
 	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
@@ -611,16 +572,12 @@ void PBRTexture::setupDepthStencil()
 	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	VK_CHECK_RESULT(vkCreateSampler(device, &samplerCreateInfo, nullptr, &depthStencilSampler));
-	
+
 	VkCommandBuffer cmdBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 	VkImageSubresourceRange subResourceRange = vks::vksTools::genDepthSubresourceRange();
-	
-	vks::tools::setImageLayout(
-		cmdBuffer, depthStencil.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, subResourceRange
-	);
+
+	vks::tools::setImageLayout(cmdBuffer, depthStencil.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, subResourceRange);
 	vulkanDevice->flushCommandBuffer(cmdBuffer, queue, true);
 
 	vkDeviceWaitIdle(device);
 }
-
-
