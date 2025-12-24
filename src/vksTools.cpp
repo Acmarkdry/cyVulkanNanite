@@ -67,20 +67,23 @@ namespace vks
 			                                         VK_SHADER_STAGE_FRAGMENT_BIT, 9),
 		};
 		descMgr->addSetLayout(DescriptorType::Scene, setLayoutBindings, 6);
-
+		
+		// hiz
 		setLayoutBindings = {
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0),
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),
 		};
 		descMgr->addSetLayout(DescriptorType::hiz, setLayoutBindings, pbrTexture.textures.hizBuffer.mipLevels - 1);
-
+		
+		// debug quad
 		setLayoutBindings = {
-			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 0)
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0)
 		};
 		descMgr->addSetLayout(DescriptorType::debugQuad, setLayoutBindings, 1);
-
+		
+		// depth copy
 		setLayoutBindings = {
-			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),
 		};
 		descMgr->addSetLayout(DescriptorType::depthCopy, setLayoutBindings, 1);
@@ -151,8 +154,8 @@ namespace vks
 		constexpr VkFormat format = VK_FORMAT_R16G16_SFLOAT; // R16G16 is supported pretty much everywhere
 		constexpr int32_t dim = 512;
 		auto device = pbrTexture.GetDevice();
-		auto textures = pbrTexture.textures;
-		auto vulkanDevice = pbrTexture.vulkanDevice;
+		auto &textures = pbrTexture.textures;
+		auto &vulkanDevice = pbrTexture.vulkanDevice;
 
 		// Image
 		VkImageCreateInfo imageCI = initializers::imageCreateInfo();
@@ -369,8 +372,8 @@ namespace vks
 	void vksTools::generateIrradianceCube(PBRTexture& pbrTexture)
 	{
 		auto device = pbrTexture.GetDevice();
-		auto textures = pbrTexture.textures;
-		auto vulkanDevice = pbrTexture.vulkanDevice;
+		auto& textures = pbrTexture.textures;
+		auto& vulkanDevice = pbrTexture.vulkanDevice;
 		auto queue = pbrTexture.GetQueue();
 
 		auto tStart = std::chrono::high_resolution_clock::now();
@@ -784,8 +787,8 @@ namespace vks
 	void vksTools::generatePrefilteredCube(PBRTexture& pbrTexture)
 	{
 		auto device = pbrTexture.GetDevice();
-		auto textures = pbrTexture.textures;
-		auto vulkanDevice = pbrTexture.vulkanDevice;
+		auto &textures = pbrTexture.textures;
+		auto &vulkanDevice = pbrTexture.vulkanDevice;
 		auto queue = pbrTexture.GetQueue();
 
 		auto tStart = std::chrono::high_resolution_clock::now();

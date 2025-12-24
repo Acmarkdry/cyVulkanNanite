@@ -166,11 +166,11 @@ void PBRTexture::preparePipelines()
 	{
 		VkPipelineShaderStageCreateInfo computeShaderStage = loadShader(getShadersPath() + "pbrtexture/depthCopy.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::depthCopy), 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &hizComputePipeline.pipelineLayout));
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &depthCopyPipeline.pipelineLayout));
 		
-		VkComputePipelineCreateInfo pipelineCreateInfo = vks::initializers::computePipelineCreateInfo(hizComputePipeline.pipelineLayout);
+		VkComputePipelineCreateInfo pipelineCreateInfo = vks::initializers::computePipelineCreateInfo(depthCopyPipeline.pipelineLayout);
 		pipelineCreateInfo.stage = computeShaderStage;
-		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &hizComputePipeline.pipeline));
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &depthCopyPipeline.pipeline));
 	}
 	
 }
@@ -361,13 +361,13 @@ void PBRTexture::buildCommandBuffers()
 		imageMemBarriers[0].subresourceRange = vks::vksTools::genDepthSubresourceRange();
 		
 		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0, 0, 0, 0, 0, imageMemBarriers.size(), imageMemBarriers.data());
-
+		
 		// 开始为hiz buffer添加image barrier
 		vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipeline);
 		for (int j = 0; j < textures.hizBuffer.mipLevels - 1; j++)
 		{
 			vkCmdBindDescriptorSets(drawCmdBuffers[0], VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::hiz, j), 0, nullptr);
-			vkCmdDispatch(drawCmdBuffers[i], (width + workgroupX - 1)/workgroupY, (height + workgroupY - 1) / workgroupY, 1);
+			vkCmdDispatch(drawCmdBuffers[i], (width + workgroupX - 1)/workgroupX, (height + workgroupY - 1) / workgroupY, 1);
 			
 			VkImageMemoryBarrier imageBarrier = vks::initializers::imageMemoryBarrier();
 			imageBarrier.image = textures.hizBuffer.image;
