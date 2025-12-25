@@ -8,6 +8,7 @@
 
 // For reference see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 
+#include "logger.h"
 #include "pbrTexture.h"
 #include "VulkanDescriptorManager.h"
 #include "../../src/vksTools.h"
@@ -242,6 +243,8 @@ void PBRTexture::prepare()
 	setupDescriptors();
 	preparePipelines();
 	 */
+	 
+	initLogSystem();
 	VulkanExampleBase::prepare();
 	loadAssets();
 	generateBRDFLUT();
@@ -590,4 +593,15 @@ void PBRTexture::setupDepthStencil()
 	vulkanDevice->flushCommandBuffer(cmdBuffer, queue, true);
 
 	vkDeviceWaitIdle(device);
+}
+
+void PBRTexture::initLogSystem()
+{
+	auto& Logger = Log::Logger::Instance();
+	Logger.SetLevel(Log::Level::Trace);
+	Logger.EnableColor(true);
+	Logger.SetLogFile("cyVulkanNanite.log");
+	
+	// 如何使用log系统
+	
 }
