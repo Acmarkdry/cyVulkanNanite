@@ -13,6 +13,17 @@
 #include "../../src/vksTools.h"
 
 
+PBRTexture::PBRTexture():VulkanExampleBase(true)
+{
+	title = "Textured PBR with IBL";
+	camera.type = Camera::CameraType::firstperson;
+	camera.movementSpeed = 4.0f;
+	camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
+	camera.rotationSpeed = 0.25f;
+	camera.setRotation({ -7.75f, 150.25f, 0.0f });
+	camera.setPosition({ 0.7f, 0.1f, 1.7f });
+}
+
 PBRTexture::~PBRTexture()
 {
 	if (device)
@@ -20,22 +31,21 @@ PBRTexture::~PBRTexture()
 		vkDestroyPipeline(device, pipelines.skybox, nullptr);
 		vkDestroyPipeline(device, pipelines.pbr, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		
 		auto descMgr = VulkanDescriptorManager::getManager();
 		descMgr->destroy();
-		textures.environmentCube.destroy();
-		textures.irradianceCube.destroy();
-		textures.prefilteredCube.destroy();
-		textures.lutBrdf.destroy();
-		textures.albedoMap.destroy();
-		textures.normalMap.destroy();
-		textures.aoMap.destroy();
-		textures.metallicMap.destroy();
-		textures.roughnessMap.destroy();
-		// textures.hizBuffer.destroy();
-
-		uniformBuffers.scene.destroy();
-		uniformBuffers.skybox.destroy();
-		uniformBuffers.params.destroy();
+		textures.destroy();
+		uniformBuffers.destroy();
+		
+		for (auto& hizImageView : hizImageViews)
+		{
+			vkDestroyImageView(device, hizImageView, nullptr);
+		}
+		hizImageViews.clear();
+		
+		hizComputePipeline.destroy(device);
+		depthCopyPipeline.destroy(device);
+		debugQuadPipeline.destroy(device);
 	}
 }
 
@@ -202,11 +212,11 @@ void PBRTexture::updateUniformBuffers()
 	uniformDataMatrices.view = camera.matrices.view;
 	uniformDataMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	uniformDataMatrices.camPos = camera.position * -1.0f;
-	memcpy(uniformBuffers.scene.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
+	memcpy(uniformBuffers.scene.mapped, &uniformDataMatrices, sizeof(vks::UniformDataMatrices));
 
 	// Skybox
 	uniformDataMatrices.model = glm::mat4(glm::mat3(camera.matrices.view));
-	memcpy(uniformBuffers.skybox.mapped, &uniformDataMatrices, sizeof(UniformDataMatrices));
+	memcpy(uniformBuffers.skybox.mapped, &uniformDataMatrices, sizeof(vks::UniformDataMatrices));
 }
 
 void PBRTexture::updateParams()

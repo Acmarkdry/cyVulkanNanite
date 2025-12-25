@@ -21,7 +21,6 @@ namespace vks
 		void static generateBRDFLUT(PBRTexture& pbrTexture);
 		void static generateIrradianceCube(PBRTexture& pbrTexture);
 		void static generatePrefilteredCube(PBRTexture& pbrTexture);
-		
 	};	
 }
 

@@ -1,9 +1,7 @@
 ﻿#pragma once
-#include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <glm/detail/func_common.hpp>
 #include <glm/detail/type_vec.hpp>
 
 #include "Const.h"

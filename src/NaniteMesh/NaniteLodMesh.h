@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <memory>
-#include <glm/detail/type_vec.hpp>
-
+#include "Cluster.h"
+#include "ClusterGroup.h"
 #include "Const.h"
 
 namespace Nanite
