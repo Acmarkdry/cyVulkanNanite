@@ -20,6 +20,7 @@ namespace Nanite
     	std::vector<bool> islastLodEdgeVertices;
     	OpenMesh::HPropHandleT<int32_t> clusterGroupIndexPropHandle;
     	std::vector<idx_t> triangleClusterIndex;
+    	std::vector<idx_t> clusterGroupIndex;
     	
     	std::vector<uint32_t> triangleIndicesSortedByClusterIdx; // face_idx sort by cluster
     	std::vector<uint32_t> triangleVertexIndicesSortedByClusterIdx;
