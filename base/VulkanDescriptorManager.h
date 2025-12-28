@@ -10,6 +10,7 @@ enum class DescriptorType
 	hiz,
 	depthCopy,
 	debugQuad,
+	culling,
 };
 
 class VulkanDescriptorManager: public Singleton<VulkanDescriptorManager>

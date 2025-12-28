@@ -2,6 +2,7 @@
 #include <source_location>
 #include <iostream>
 #include <format>  // C++20
+#include <glm/detail/type_vec.hpp>
 
 namespace Nanite {
 
@@ -42,4 +43,5 @@ namespace Nanite {
 		) << std::format(fmt, std::forward<Args>(args)...) << '\n';
 	}
 	
+	void getTriangleAABB(const glm::vec3 & p0, const glm::vec3 & p1, const glm::vec3 & p2, glm::vec3 & pMin, glm::vec3 & pMax);
 }

@@ -57,6 +57,22 @@ namespace vks
 		VkPipeline pbr{ VK_NULL_HANDLE };
 	};
 	
+	struct DrawIndexedIndirect
+	{
+		uint32_t indexCount;
+		uint32_t instanceCount;
+		uint32_t firstIndex;
+		uint32_t firstInstance;
+		uint32_t vertexOffset;
+	};
+	
+	struct UBOCullingMatrices
+	{
+		glm::mat4 model;
+		glm::mat4 lastView;
+		glm::mat4 lastProj;
+	};
+	
 	class VulkanResourceTracker
 	{
 	private:
