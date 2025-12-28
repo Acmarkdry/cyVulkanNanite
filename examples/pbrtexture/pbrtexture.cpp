@@ -7,7 +7,6 @@
 */
 
 // For reference see http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-
 #include "logger.h"
 #include "pbrTexture.h"
 #include "VulkanDescriptorManager.h"
