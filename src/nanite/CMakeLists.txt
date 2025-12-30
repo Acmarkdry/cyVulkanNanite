@@ -1,29 +1,40 @@
 # src/nanite/CMakeLists.txt
 # Nanite Core 静态库 — Nanite LOD 网格处理核心
 
-file(GLOB NANITE_SOURCES "*.cpp")
-file(GLOB NANITE_HEADERS "*.h")
+file(GLOB NANITE_SOURCES CONFIGURE_DEPENDS "*.cpp")
+file(GLOB NANITE_HEADERS CONFIGURE_DEPENDS "*.h")
 
 add_library(nanite_core STATIC ${NANITE_SOURCES} ${NANITE_HEADERS})
 
-# 暴露 include 路径给依赖者
-# PUBLIC: 任何链接 nanite_core 的目标都能直接 #include "NaniteMesh.h" 等
-target_include_directories(nanite_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-# nanite_core 需要 base 的头文件 (VulkanglTFModel.h 等)
-# 但不链接 base 库本身（避免循环依赖），仅传递 include 路径
+# ── PUBLIC include 路径 ──────────────────────────────────────
+# nanite 自身头文件路径
 target_include_directories(nanite_core PUBLIC
-    ${CMAKE_SOURCE_DIR}/base
-    ${CMAKE_SOURCE_DIR}/external
-    ${CMAKE_SOURCE_DIR}/external/glm
-    ${CMAKE_SOURCE_DIR}/external/gli
-    ${CMAKE_SOURCE_DIR}/external/tinygltf
-    ${CMAKE_SOURCE_DIR}/external/ktx/include
-    ${CMAKE_SOURCE_DIR}/external/ktx/other_include
-    ${Vulkan_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# 第三方依赖
+# nanite 公共头文件的传递依赖：
+#   NaniteLodMesh.h → VulkanglTFModel.h → vulkan.h, ktx.h, tiny_gltf.h
+#   NaniteMesh.h    → tiny_gltf.h
+#   Const.h         → glm.hpp, OpenMesh, metis.h
+#   NaniteBVH.h     → json.hpp
+# 这些路径必须 PUBLIC，否则链接者 include nanite 头文件时编译失败
+target_include_directories(nanite_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/base              # VulkanglTFModel.h, VulkanDevice.h
+    ${CMAKE_SOURCE_DIR}/external          # json.hpp
+    ${CMAKE_SOURCE_DIR}/external/glm      # glm
+    ${CMAKE_SOURCE_DIR}/external/tinygltf # tiny_gltf.h
+    ${CMAKE_SOURCE_DIR}/external/ktx/include       # ktx.h
+    ${CMAKE_SOURCE_DIR}/external/ktx/other_include # ktxvulkan.h
+    ${Vulkan_INCLUDE_DIRS}                # vulkan/vulkan.h
+)
+
+# ── PRIVATE include 路径 ─────────────────────────────────────
+# 仅 nanite_core .cpp 文件内部使用，不被任何公共头文件引用
+target_include_directories(nanite_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/external/gli      # gli（仅 .cpp 中使用，公共头文件不引用）
+)
+
+# ── 第三方依赖 ───────────────────────────────────────────────
 find_package(OpenMesh CONFIG REQUIRED)
 find_package(metis CONFIG REQUIRED)
 

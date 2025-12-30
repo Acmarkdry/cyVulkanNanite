@@ -138,3 +138,9 @@ add_subdirectory(src/nanite)
 add_subdirectory(base)
 add_subdirectory(src/RenderGraph)
 add_subdirectory(examples)
+
+# 测试默认开启，可通过 -DBUILD_TESTING=OFF 关闭（跳过 GTest/RapidCheck 下载）
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
