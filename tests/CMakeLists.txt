@@ -13,11 +13,26 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+# FetchContent 引入 googletest 后只有无命名空间目标（gtest/gtest_main），
+# 手动创建带命名空间的 ALIAS，保持与 find_package(GTest) 一致的用法
+if(TARGET gtest AND NOT TARGET GTest::gtest)
+    add_library(GTest::gtest      ALIAS gtest)
+endif()
+if(TARGET gtest_main AND NOT TARGET GTest::gtest_main)
+    add_library(GTest::gtest_main ALIAS gtest_main)
+endif()
+if(TARGET gmock AND NOT TARGET GTest::gmock)
+    add_library(GTest::gmock      ALIAS gmock)
+endif()
+if(TARGET gmock_main AND NOT TARGET GTest::gmock_main)
+    add_library(GTest::gmock_main ALIAS gmock_main)
+endif()
+
 # ── RapidCheck ───────────────────────────────────────────────
 FetchContent_Declare(
     rapidcheck
     GIT_REPOSITORY https://github.com/emil-e/rapidcheck.git
-    GIT_TAG        ff6571e  # 锁定到稳定 commit，避免 master 随时 break
+    GIT_TAG        b96a4e626ef4c7348dcd16c500353c2f997a9f3f  # master HEAD (2024), 完整 hash 确保 FetchContent 能正确检出
 )
 set(RC_ENABLE_GTEST ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(rapidcheck)
