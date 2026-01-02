@@ -37,7 +37,6 @@ namespace Nanite
 		// lod
 		do
 		{
-			// For each lod mesh
 			NaniteLodMesh meshLOD;
 			meshLOD.mesh = naniteTriMesh;
 			meshLOD.lodLevel = lodNums;
@@ -52,14 +51,13 @@ namespace Nanite
 			}
 			if (meshes.size() > 0) {
 				auto& lastMeshLOD = meshes[meshes.size() - 1];
-				// Maintain DAG
+				// TODO
 
 			}
-			// Generate cluster group by partitioning cluster graph
+			
 			meshLOD.buildClusterGraph();
-			meshLOD.colorClusterGraph(); // Cluster graph is needed to assign adjacent cluster different colors
+			meshLOD.colorClusterGraph(); 
 			meshLOD.generateClusterGroup();
-			currFaceNum = meshLOD.mesh.n_faces();
 			clusterGroupNum = meshLOD.clusterGroupNum;
 
 			naniteTriMesh = meshLOD.mesh;
