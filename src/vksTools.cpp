@@ -9,17 +9,22 @@ namespace vks
 {
 	void vksTools::createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty,
 	                                   VkDeviceSize srcBufferSize, void* srcBufferData,
-	                                   VkBufferUsageFlags targetMemoryProperty, Buffer& targetStaingBuffer)
+	                                   VkBufferUsageFlags targetMemoryProperty, Buffer& targetStaingBuffer, bool cmdRestart = true)
 	{
+		struct StagingBuffer
+		{
+			VkBuffer buffer;
+			VkDeviceMemory memory;
+		} srcStaging;
+		
 		VulkanDevice* vulkanDevice = variableLink.vulkanDevice;
 		VkQueue& queue = variableLink.GetQueue();
-		Buffer srcStagingBuffer;
 
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT | sorceMemoryProperty,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			srcBufferSize,
-			&srcStagingBuffer.buffer,
-			&srcStagingBuffer.memory,
+			&srcStaging.buffer,
+			&srcStaging.memory,
 			srcBufferData))
 
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | targetMemoryProperty,
@@ -29,15 +34,15 @@ namespace vks
 			&targetStaingBuffer.memory,
 			nullptr))
 
-		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, cmdRestart);
 		VkBufferCopy copyRegion = {};
 
 		copyRegion.size = srcBufferSize;
-		vkCmdCopyBuffer(copyCmd, srcStagingBuffer.buffer, srcStagingBuffer.buffer, 1, &copyRegion);
+		vkCmdCopyBuffer(copyCmd, srcStaging.buffer, targetStaingBuffer.buffer, 1, &copyRegion);
 
 		vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
-		vkDestroyBuffer(vulkanDevice->logicalDevice, srcStagingBuffer.buffer, nullptr);
-		vkFreeMemory(vulkanDevice->logicalDevice, srcStagingBuffer.memory, nullptr);
+		vkDestroyBuffer(vulkanDevice->logicalDevice, srcStaging.buffer, nullptr);
+		vkFreeMemory(vulkanDevice->logicalDevice, srcStaging.memory, nullptr);
 	}
 
 	void vksTools::setPbrDescriptor(PBRTexture& pbrTexture)
@@ -160,7 +165,6 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::culling, 0, 3, &pbrTexture.drawIndexedIndirectBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 4, &pbrTexture.cullingUniformBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 5, &pbrTexture.textures.hizBuffer.descriptor);
-		
 	}
 
 	VkImageSubresourceRange vksTools::genDepthSubresourceRange()

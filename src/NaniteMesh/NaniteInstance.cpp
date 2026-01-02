@@ -15,9 +15,9 @@ namespace Nanite
         size_t totalNumIndices = 0;
         for (int i = 0; i < referenceMesh->meshes.size(); i++)
         {
-            assert(referenceMesh->meshes[i].uniqueVertexBuffer.size() > 0);
+            NaniteAssert(referenceMesh->meshes[i].uniqueVertexBuffer.size() > 0, "unique vertex buffer size is zero");
             totalNumVertices += referenceMesh->meshes[i].uniqueVertexBuffer.size();
-            assert(referenceMesh->meshes[i].triangleVertexIndicesSortedByClusterIdx.size() > 0);
+            NaniteAssert(referenceMesh->meshes[i].triangleVertexIndicesSortedByClusterIdx.size() > 0, "triangle vertex indices size is zero");
             totalNumIndices += referenceMesh->meshes[i].triangleVertexIndicesSortedByClusterIdx.size();
         }
         vertexBuffer.reserve(totalNumVertices);
