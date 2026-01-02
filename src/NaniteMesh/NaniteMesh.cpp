@@ -5,6 +5,8 @@
 #include "BVH.h"
 #include "NaniteLodMesh.h"
 #include "../utils.h"
+#include <filesystem>
+#include <json.hpp>
 
 namespace Nanite
 {
@@ -28,28 +30,47 @@ namespace Nanite
 		vkglTFMeshToOpenMesh(naniteTriMesh, *vkglTFMesh);
 
 		int clusterGroupNum = -1;
-		int target = 1; // 先只进行一次
+		int target = 3;
 		int currFaceNum = -1;
 		naniteTriMesh.add_property(clusterGroupIndexPropHandle);
 
 		// lod
 		do
 		{
-			NaniteLodMesh naniteLodMesh;
-			naniteLodMesh.mesh = naniteTriMesh;
-			// cluster
-			naniteLodMesh.buildTriangleGraph();
-			naniteLodMesh.generateCluster();
-			
-			// cluster graph
-			naniteLodMesh.buildClusterGraph();
-			naniteLodMesh.colorClusterGraph();
-			naniteLodMesh.generateClusterGroup();
-			
-			// TODO mesh简化
-			
-			meshes.push_back(naniteLodMesh);
-		}
+			// For each lod mesh
+			NaniteLodMesh meshLOD;
+			meshLOD.mesh = naniteTriMesh;
+			meshLOD.lodLevel = lodNums;
+			meshLOD.clusterGroupIndexPropHandle = clusterGroupIndexPropHandle;
+			if (clusterGroupNum > 0) {
+				meshLOD.oldClusterGroups.resize(clusterGroupNum);
+				meshLOD.assignTriangleClusterGroup(meshes.back()); 
+			}
+			else {
+				meshLOD.buildTriangleGraph();
+				meshLOD.generateCluster();
+			}
+			if (meshes.size() > 0) {
+				auto& lastMeshLOD = meshes[meshes.size() - 1];
+				// Maintain DAG
+
+			}
+			// Generate cluster group by partitioning cluster graph
+			meshLOD.buildClusterGraph();
+			meshLOD.colorClusterGraph(); // Cluster graph is needed to assign adjacent cluster different colors
+			meshLOD.generateClusterGroup();
+			currFaceNum = meshLOD.mesh.n_faces();
+			clusterGroupNum = meshLOD.clusterGroupNum;
+
+			naniteTriMesh = meshLOD.mesh;
+			if (clusterGroupNum > 1) 
+			{
+				meshLOD.simplifyMesh(naniteTriMesh); 
+			}
+			meshes.emplace_back(meshLOD);
+			std::cout << "LOD " << lodNums++ << " generated" << std::endl;
+
+		} 
 		while (--target);
 		
 		// TODO bvh tree
@@ -112,10 +133,94 @@ namespace Nanite
 
 	void NaniteMesh::serialize(const std::string& filepath)
 	{
+		std::filesystem::path directoryPath(filepath);
+
+		try
+		{
+			if (std::filesystem::create_directory(directoryPath))
+			{
+				std::cout << "Directory created success" << std::endl;
+			}
+			else
+			{
+				std::cout << "Directory creation failed" << std::endl;
+			}
+		}
+		catch (const std::filesystem::filesystem_error &error)
+		{
+			NaniteAssert(false, "error");
+		}
+
+		for (size_t i = 0; i < meshes.size(); i++)
+		{
+			auto& mesh = meshes[i];
+			std::string output_filename = std::string(filepath) + "lod_" + std::to_string(i) + ".obj";
+			if (!OpenMesh::IO::write_mesh(mesh.mesh, output_filename))
+			{
+				std::cerr << "error exporting mesh to" << output_filename << std::endl;
+			}
+		}
+
+		nlohmann::json result;
+		for (size_t i = 0; i < flattenedClusterNodes.size(); i++)
+		{
+			result["flattenedClusterNodes"][i] = flattenedClusterNodes[i].toJson();
+		}
+		for (size_t i = 0; i < meshes.size(); i++)
+		{
+			result["mesh"][i] = meshes[i].toJson();
+		}
+		result[cache_time_key] = std::time(nullptr);
+		result["lodNums"] = lodNums;
+		result["clusterNodeSize"] = flattenedClusterNodes.size();
+		// Save the JSON data to a file
+		std::ofstream file(std::string(filepath) + "nanite_info.json");
+		if (file.is_open()) {
+			file << result.dump(2); // Pretty-print with an indentation of 2 spaces
+			file.close();
+		}
+		else {
+			NaniteAssert(0, "Error opening file for serialization");
+		}
 	}
 
 	void NaniteMesh::deserialize(const std::string& filepath)
 	{
+		std::ifstream inputFile(filepath + "nanite_info.json");
+		if (inputFile.is_open())
+		{
+			nlohmann::json loadedJson;
+			inputFile >> loadedJson;
+
+			for (const auto&element: loadedJson["flattenedClusterNodes"])
+			{
+				ClusterNode node;
+				node.fromJson(element);
+				flattenedClusterNodes.emplace_back(node);
+			}
+
+			lodNums = loadedJson["lodNums"].get<uint32_t>();
+			meshes.resize(lodNums);
+			for (int i = 0;i < lodNums; i++)
+			{
+				auto& meshLod = meshes[i];
+				meshLod.fromJson(loadedJson["mesh"][i]);
+			}
+		}
+		else
+		{
+			NaniteAssert(false, "Error opening file for deserialization");
+		}
+
+		for (size_t i = 0; i < lodNums; i++)
+		{
+			std::string outputFileName = std::string(filepath) + "lod_" + std::to_string(i) + ".obj";
+			if (!OpenMesh::IO::read_mesh(meshes[i].mesh, outputFileName))
+			{
+				NaniteAssert(false, "failed to load mesh");
+			}
+			meshes[i].lodLevel = i;
+		}
 	}
 
 	void NaniteMesh::initNaniteInfo(const std::string& filepath, bool useCache)

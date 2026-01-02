@@ -55,6 +55,10 @@ namespace Nanite
         /************ Build Info *************/
         void generateNaniteInfo();
 
+        /*dag*/
+        std::vector<ClusterNode> flattenedClusterNodes;
+        void flattenDAG();
+        
         std::vector<ClusterInfo> clusterInfo;
         std::vector<ErrorInfo> errorInfo;
         std::vector<uint32_t> sortedClusterIndices;

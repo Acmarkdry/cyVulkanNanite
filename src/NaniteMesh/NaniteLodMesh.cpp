@@ -232,17 +232,19 @@ namespace Nanite
 
 	void NaniteLodMesh::createSortedIndexBuffer(VulkanExampleBase& link)
 	{
-		size_t indexBufferSize = triangleVertexIndicesSortedByClusterIdx.size()*sizeof(uint32_t);
+		size_t indexBufferSize = triangleVertexIndicesSortedByClusterIdx.size() * sizeof(uint32_t);
 		sortedIndices.size = static_cast<uint32_t>(triangleVertexIndicesSortedByClusterIdx.size());
 		assert(indexBufferSize > 0);
-		
-		vks::vksTools::createStagingBuffer(link, 0, indexBufferSize, 
-			triangleVertexIndicesSortedByClusterIdx.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT| VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, sortedIndices);
+
+		vks::vksTools::createStagingBuffer(link, 0, indexBufferSize,
+		                                   triangleVertexIndicesSortedByClusterIdx.data(),
+		                                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		                                   sortedIndices);
 	}
 
 	void NaniteLodMesh::initUniqueVertexBuffer()
 	{
-		for (const auto&vertex: mesh.vertices())
+		for (const auto& vertex : mesh.vertices())
 		{
 			vkglTF::Vertex v;
 			v.pos = glm::vec3(mesh.point(vertex)[0], mesh.point(vertex)[1], mesh.point(vertex)[2]);
@@ -262,7 +264,7 @@ namespace Nanite
 
 		real_t targetVertexWeight = static_cast<real_t>(clusterMetisGraph.nvtxs) / ClusterGroupTargetSize;
 		idx_t ncon = 1;
-		auto clusterGroupNum = clusterMetisGraph.nvtxs / ClusterGroupTargetSize;
+		clusterGroupNum = clusterMetisGraph.nvtxs / ClusterGroupTargetSize;
 		clusterGroups.resize(clusterGroupNum);
 		if (clusterGroupNum == 1)
 		{
@@ -286,7 +288,10 @@ namespace Nanite
 		idx_t options[METIS_NOPTIONS];
 		METIS_SetDefaultOptions(options);
 		options[METIS_OPTION_SEED] = 42; // Set your desired seed value
-		auto res = METIS_PartGraphKway(&clusterMetisGraph.nvtxs, &ncon, clusterMetisGraph.xadj.data(), clusterMetisGraph.adjncy.data(), nullptr, nullptr, clusterMetisGraph.adjwgt.data(), &clusterGroupNum, tpwgts, nullptr, options, &objVal, clusterGroupIndex.data());
+		auto res = METIS_PartGraphKway(&clusterMetisGraph.nvtxs, &ncon, clusterMetisGraph.xadj.data(),
+		                               clusterMetisGraph.adjncy.data(), nullptr, nullptr,
+		                               clusterMetisGraph.adjwgt.data(), &clusterGroupNum, tpwgts, nullptr, options,
+		                               &objVal, clusterGroupIndex.data());
 		free(tpwgts);
 		NaniteAssert(res, "METIS_PartGraphKway failed");
 
@@ -300,9 +305,78 @@ namespace Nanite
 		}
 	}
 
-	void NaniteLodMesh::simplifyMesh(NaniteTriMesh& mesh)
+	void NaniteLodMesh::simplifyMesh(NaniteTriMesh& triMesh)
 	{
-		NaniteAssert(false, "simplifyMesh not implemented");
+		OpenMesh::Decimater::DecimaterT<NaniteTriMesh> decimater(triMesh);
+		OpenMesh::Decimater::MyModQuadricT<NaniteTriMesh>::Handle hModQuadric;
+		decimater.add(hModQuadric);
+		decimater.module(hModQuadric).set_max_err(FLT_MAX, false);
+
+		decimater.initialize();
+
+		size_t original_faces = triMesh.n_faces();
+		std::cout << "NUM FACES BEFORE: " << original_faces << std::endl;
+		constexpr double percentage = 0.5;
+
+		auto currTargetFaceNum = triMesh.n_faces();
+		for (uint32_t i = 0; i < clusterGroups.size(); ++i)
+		{
+			currTargetFaceNum = triMesh.n_faces() - clusterGroups[i].localFaceNum * (1.0f - percentage);
+			NaniteTriMesh submesh;
+			uint32_t faceCount = 0;
+			for (const auto& heh : triMesh.halfedges())
+			{
+				auto clusterGroupIdx = triMesh.property(clusterGroupIndexPropHandle, heh) - 1;
+				if (clusterGroupIdx == i)
+				{
+					auto vh1 = triMesh.to_vertex_handle(heh);
+					auto vh2 = triMesh.from_vertex_handle(heh);
+					auto vh3 = triMesh.to_vertex_handle(triMesh.next_halfedge_handle(heh));
+					std::vector<NaniteTriMesh::VertexHandle> face_vhandles;
+					auto vh1_new = submesh.add_vertex(triMesh.point(vh1));
+					auto vh2_new = submesh.add_vertex(triMesh.point(vh2));
+					auto vh3_new = submesh.add_vertex(triMesh.point(vh3));
+					submesh.add_face(vh1_new, vh2_new, vh3_new);
+					faceCount++;
+					triMesh.status(vh1).set_selected(true);
+					triMesh.status(vh2).set_selected(true);
+					if (triMesh.is_boundary(triMesh.opposite_halfedge_handle(heh))
+						|| (triMesh.property(clusterGroupIndexPropHandle, triMesh.opposite_halfedge_handle(heh)) - 1) !=
+						i)
+					{
+						triMesh.status(vh1).set_locked(true);
+						triMesh.status(vh2).set_locked(true);
+					}
+				}
+			}
+
+			std::cout << "Cluster group: " << i << " Face num: " << currTargetFaceNum << std::endl;
+
+			auto n_collapses = decimater.decimate_to_faces(0, currTargetFaceNum, true);
+			std::cout << "Total error: " << decimater.module(hModQuadric).total_err() << std::endl;
+			clusterGroups[i].qemError = decimater.module(hModQuadric).total_err();
+			decimater.module(hModQuadric).clear_total_err();
+			std::cout << "n_collapses: " << n_collapses << std::endl;
+			triMesh.garbage_collection();
+			//NaniteTriMesh submeshAfterDecimation;
+			for (const auto& vh : triMesh.vertices())
+			{
+				triMesh.status(vh).set_selected(false);
+			}
+
+			std::cout << "NUM FACES AFTER: " << triMesh.n_faces() << std::endl;
+		}
+		//std::cout << "Curr cluster group num: " << clusterGroups.size() << std::endl;
+		for (const auto& vh : triMesh.vertices())
+		{
+			triMesh.status(vh).set_selected(false);
+			triMesh.status(vh).set_locked(false);
+		}
+		size_t target_faces = static_cast<size_t>(original_faces * percentage);
+
+		triMesh.garbage_collection();
+		size_t actual_faces = triMesh.n_faces();
+		std::cout << "NUM FACES AFTER: " << actual_faces << std::endl;
 	}
 
 	void NaniteLodMesh::buildClusterGraph()
@@ -381,6 +455,24 @@ namespace Nanite
 
 	void NaniteLodMesh::createBVH()
 	{
+	}
+
+	nlohmann::json NaniteLodMesh::toJson()
+	{
+		return {
+			{"clusterNum", clusterNum},
+			{"triangleClusterIndex", triangleClusterIndex},
+			{"triangleIndicesSortedByClusterIdx", triangleIndicesSortedByClusterIdx},
+			{"triangleVertexIndicesSortedByClusterIdx", triangleVertexIndicesSortedByClusterIdx},
+		};
+	}
+
+	void NaniteLodMesh::fromJson(const nlohmann::json& json)
+	{
+		clusterNum = json["clusterNum"].get<int>();
+		triangleClusterIndex = json["triangleClusterIndex"].get<std::vector<idx_t>>();
+		triangleIndicesSortedByClusterIdx = json["triangleIndicesSortedByClusterIdx"].get<std::vector<uint32_t>>();
+		triangleVertexIndicesSortedByClusterIdx = json["triangleVertexIndicesSortedByClusterIdx"].get<std::vector<uint32_t>>();
 	}
 
 	void NaniteLodMesh::assignTriangleClusterGroup(NaniteLodMesh& lastLod)
@@ -520,7 +612,7 @@ namespace Nanite
 			NaniteAssert(cluster.childLODErrorMax >= 0, "cluster.childMaxLODError < 0");
 			NaniteAssert(cluster.qemError >= 0, "cluster.qemError < 0");
 			cluster.lodError = cluster.qemError / (lastLod.clusters[cluster.childClusterIndices[0]].parentClusterIndices
-			                                                                                       .size() + 1) + cluster.childLODErrorMax;
+				.size() + 1) + cluster.childLODErrorMax;
 			cluster.normalizedlodError = std::max(maxChildNormalizedError + 1e-9,
 			                                      cluster.lodError / (cluster.boundingSphereRadius * cluster.
 				                                      boundingSphereRadius));
