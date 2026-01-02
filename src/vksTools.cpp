@@ -9,7 +9,7 @@ namespace vks
 {
 	void vksTools::createStagingBuffer(VulkanExampleBase& variableLink, VkBufferUsageFlags sorceMemoryProperty,
 	                                   VkDeviceSize srcBufferSize, void* srcBufferData,
-	                                   VkBufferUsageFlags targetMemoryProperty, Buffer& targetStaingBuffer, bool cmdRestart = true)
+	                                   VkBufferUsageFlags targetMemoryProperty, Buffer& targetStaingBuffer, bool cmdRestart)
 	{
 		struct StagingBuffer
 		{
@@ -100,7 +100,7 @@ namespace vks
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
-			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
 		};
 		descMgr->addSetLayout(DescriptorType::culling, setLayoutBindings, 1);
