@@ -64,11 +64,13 @@ void PBRTexture::loadAssets()
 {
 	constexpr uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 	models.skybox.loadFromFile(getAssetPath() + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
-	models.object.loadFromFile(getAssetPath() + "models/cerberus/cerberus.gltf", vulkanDevice, queue, glTFLoadingFlags);
+	// models.object.loadFromFile(getAssetPath() + "models/cerberus/cerberus.gltf", vulkanDevice, queue, glTFLoadingFlags);
+	models.object.loadFromFile(getAssetPath() + "models/bunny.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	
-	naniteMesh.setModelPath((getAssetPath() + "models/cerberus/").c_str());
+	naniteMesh.setModelPath((getAssetPath() + "models/bunny/").c_str());
 	naniteMesh.loadvkglTFModel(models.object);
-	naniteMesh.initNaniteInfo(getAssetPath() + "models/cerberus/cerberus.gltf", true);
+	// naniteMesh.initNaniteInfo(getAssetPath() + "models/cerberus/cerberus.gltf", true);
+	naniteMesh.initNaniteInfo(getAssetPath() + "models/bunny.gltf", false);
 	for (int i = 0; i < naniteMesh.meshes.size(); ++i)
 	{
 		naniteMesh.meshes[i].initUniqueVertexBuffer();
@@ -296,6 +298,8 @@ void PBRTexture::updateParams()
 void PBRTexture::prepare()
 {
 	initLogSystem();
+	enabledDeviceExtensions.emplace_back(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
+	
 	VulkanExampleBase::prepare();
 	loadAssets();
 	generateBRDFLUT();
@@ -339,10 +343,99 @@ void PBRTexture::buildCommandBuffers()
 		// Set target frame buffer
 		renderPassBeginInfo.framebuffer = frameBuffers[i];
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo))
 
+		// culling和error的compute shader逻辑计算
+		VkBufferMemoryBarrier bufferBarrier = {};
+		bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.buffer = projectedErrorBuffer.buffer;
+		bufferBarrier.offset = 0;
+		bufferBarrier.size = VK_WHOLE_SIZE;
+
+		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,0, nullptr, 1, &bufferBarrier, 0, nullptr);
+
+		vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipeline);
+		errorPushConstants.numClusters = clusterInfos.size();
+		errorPushConstants.screenSize = glm::vec2(width, height);
+		vkCmdPushConstants(drawCmdBuffers[i], errorProjPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ErrorPushConstants), &errorPushConstants);
+
+		// 启动error shader
+		vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::errorPorj, 0), 0, 0);
+		vkCmdDispatch(drawCmdBuffers[i], (errorPushConstants.numClusters + 63)/64, 1, 1);
+
+		bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.buffer = projectedErrorBuffer.buffer;
+		bufferBarrier.offset = 0;
+		bufferBarrier.size = VK_WHOLE_SIZE;
+		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,0, nullptr, 1, &bufferBarrier, 0, nullptr);
+		
+		// culling shader
+		// 因为布局问题，进行转换
+		VkImageMemoryBarrier imageMemBarrier = vks::initializers::imageMemoryBarrier();
+		imageMemBarrier.image = textures.hizBuffer.image;
+		imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageMemBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageMemBarrier.subresourceRange.baseMipLevel = 0;
+		imageMemBarrier.subresourceRange.levelCount = textures.hizBuffer.mipLevels;
+		imageMemBarrier.subresourceRange.baseArrayLayer = 0;
+		imageMemBarrier.subresourceRange.layerCount = 1;
+		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imageMemBarrier);
+
+		vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipeline);
+		cullingPushConstants.numClusters = clusterInfos.size();
+		vkCmdPushConstants(drawCmdBuffers[i], cullingPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(CullingPushConstants), &cullingPushConstants);
+		vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::culling, 0), 0, 0);
+		vkCmdDispatch(drawCmdBuffers[i], (cullingPushConstants.numClusters + 63)/64, 1, 1);
+
+		// 布局记得变回来
+		imageMemBarrier.image = textures.hizBuffer.image;
+		imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageMemBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		imageMemBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		imageMemBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageMemBarrier.subresourceRange.baseMipLevel = 0;
+		imageMemBarrier.subresourceRange.levelCount = textures.hizBuffer.mipLevels;
+		imageMemBarrier.subresourceRange.baseArrayLayer = 0;
+		imageMemBarrier.subresourceRange.layerCount = 1;
+		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, 1, &imageMemBarrier);
+
+		// draw indirect的处理
+		bufferBarrier = {};
+		bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+		bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.buffer = drawIndexedIndirectBuffer.buffer;
+		bufferBarrier.offset = 0;
+		bufferBarrier.size = VK_WHOLE_SIZE;
+
+		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, 1, &bufferBarrier, 0, nullptr);
+
+		// culling 布局处理
+		bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarrier.dstAccessMask = VK_ACCESS_INDEX_READ_BIT;
+		bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufferBarrier.buffer = culledIndicesBuffer.buffer;
+		bufferBarrier.offset = 0;
+		bufferBarrier.size = VK_WHOLE_SIZE;
+		vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1, &bufferBarrier, 0, nullptr);
+		
+		// 渲染帧
 		vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
 		VkViewport viewport = vks::initializers::viewport(static_cast<float>(width), static_cast<float>(height), 0.0f,
 		                                                  1.0f);
 		vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
@@ -365,7 +458,12 @@ void PBRTexture::buildCommandBuffers()
 		vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
 		                        &descMgr->getSet(DescriptorType::Scene, 0), 0, nullptr);
 		vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.pbr);
-		models.object.draw(drawCmdBuffers[i]);
+		// models.object.draw(drawCmdBuffers[i]);
+
+		// 模型绘制部分的代码
+		vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &naniteInstance.vertices.buffer, offsets);
+		vkCmdBindIndexBuffer(drawCmdBuffers[i], culledIndicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexedIndirect(drawCmdBuffers[i], drawIndexedIndirectBuffer.buffer, 0, 1, 0);
 
 		drawUI(drawCmdBuffers[i]);
 		vkCmdEndRenderPass(drawCmdBuffers[i]);
@@ -482,6 +580,7 @@ void PBRTexture::render()
 	uboCullingMatrices.lastView = camera.matrices.view;
 	uboCullingMatrices.lastProj = camera.matrices.perspective;
 	memcpy(cullingUniformBuffer.mapped, &uboCullingMatrices, sizeof(vks::UBOCullingMatrices));
+	cullingUniformBuffer.flush();
 
 	if (camera.updated)
 	{
