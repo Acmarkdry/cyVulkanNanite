@@ -72,6 +72,14 @@ namespace vks
 		glm::mat4 lastView;
 		glm::mat4 lastProj;
 	};
+
+	struct UBOErrorMatrices
+	{
+		glm::mat4 view;
+		glm::mat4 proj;
+		alignas(16) glm::vec3 camUp;
+		alignas(16) glm::vec3 camRight;
+	};
 	
 	class VulkanResourceTracker
 	{

@@ -102,8 +102,17 @@ namespace vks
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
 			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
 		};
 		descMgr->addSetLayout(DescriptorType::culling, setLayoutBindings, 1);
+
+		// error proj
+		setLayoutBindings = {
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+		};
+		descMgr->addSetLayout(DescriptorType::errorPorj, setLayoutBindings, 1);
 
 		descMgr->createLayoutsAndSets(pbrTexture.GetDevice());
 		auto uniformBuffers = pbrTexture.uniformBuffers;
@@ -154,6 +163,7 @@ namespace vks
 		pbrTexture.culledIndicesBuffer.setupDescriptor();
 		pbrTexture.drawIndexedIndirectBuffer.setupDescriptor();
 		pbrTexture.cullingUniformBuffer.setupDescriptor();
+		pbrTexture.projectedErrorBuffer.setupDescriptor();
 		
 		VkDescriptorBufferInfo inputIndicesInfo = {};
 		inputIndicesInfo.buffer = pbrTexture.naniteInstance.indices.buffer;
@@ -165,6 +175,15 @@ namespace vks
 		descMgr->writeToSet(DescriptorType::culling, 0, 3, &pbrTexture.drawIndexedIndirectBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 4, &pbrTexture.cullingUniformBuffer.descriptor);
 		descMgr->writeToSet(DescriptorType::culling, 0, 5, &pbrTexture.textures.hizBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::culling, 0, 6, &pbrTexture.projectedErrorBuffer.descriptor);
+
+		// error
+		pbrTexture.errorInfoBuffer.setupDescriptor();
+		pbrTexture.projectedErrorBuffer.setupDescriptor();
+		pbrTexture.errorUniformBuffer.setupDescriptor();
+		descMgr->writeToSet(DescriptorType::errorPorj, 0, 0, &pbrTexture.errorInfoBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::errorPorj, 0, 1, &pbrTexture.projectedErrorBuffer.descriptor);
+		descMgr->writeToSet(DescriptorType::errorPorj, 0, 2, &pbrTexture.errorUniformBuffer.descriptor);
 	}
 
 	VkImageSubresourceRange vksTools::genDepthSubresourceRange()

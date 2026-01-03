@@ -68,7 +68,7 @@ void PBRTexture::loadAssets()
 	
 	naniteMesh.setModelPath((getAssetPath() + "models/cerberus/").c_str());
 	naniteMesh.loadvkglTFModel(models.object);
-	naniteMesh.initNaniteInfo(getAssetPath() + "models/cerberus/cerberus.gltf", false);
+	naniteMesh.initNaniteInfo(getAssetPath() + "models/cerberus/cerberus.gltf", true);
 	for (int i = 0; i < naniteMesh.meshes.size(); ++i)
 	{
 		naniteMesh.meshes[i].initUniqueVertexBuffer();
@@ -178,7 +178,7 @@ void PBRTexture::preparePipelines()
 	}
 
 	// culling
-	if(false){
+	{
 		VkPipelineShaderStageCreateInfo computeShaderStage = loadShader(getShadersPath() + "pbrtexture/culling.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 		VkPushConstantRange pushConstant = {};
 		pushConstant.size = sizeof(cullingPushConstants);
@@ -192,8 +192,27 @@ void PBRTexture::preparePipelines()
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 		pipelineCreateInfo.layout = cullingPipeline.pipelineLayout;
 		pipelineCreateInfo.stage = computeShaderStage;
-		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &cullingPipeline.pipeline))
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &cullingPipeline.pipeline))	
 	}
+
+	// error
+	{
+		VkPipelineShaderStageCreateInfo computeShaderStage = loadShader(getShadersPath() + "pbrtexture/error.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+		VkPushConstantRange push_constant{};
+		push_constant.size = sizeof(ErrorPushConstants);
+		push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::errorPorj), 1);
+		pipelineLayoutCreateInfo.pPushConstantRanges = &push_constant;
+		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &errorProjPipeline.pipelineLayout));
+
+		VkComputePipelineCreateInfo pipelineCreateInfo = {};
+		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineCreateInfo.stage = computeShaderStage;
+		pipelineCreateInfo.layout = errorProjPipeline.pipelineLayout;
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &errorProjPipeline.pipeline));
+	}
+
 }
 
 // Generate a BRDF integration map used as a look-up-table (stores roughness / NdotV)
@@ -248,6 +267,12 @@ void PBRTexture::updateUniformBuffers()
 	// Skybox
 	uniformDataMatrices.model = glm::mat4(glm::mat3(camera.matrices.view));
 	memcpy(uniformBuffers.skybox.mapped, &uniformDataMatrices, sizeof(vks::UniformDataMatrices));
+
+	uboErrorMatrices.view = camera.matrices.view;
+	uboErrorMatrices.proj = camera.matrices.perspective;
+	uboErrorMatrices.camRight = camera.getRight();
+	uboErrorMatrices.camUp = camera.getUp();
+	memcpy(errorUniformBuffer.mapped, &uboErrorMatrices, sizeof(vks::UBOErrorMatrices));
 }
 
 void PBRTexture::updateParams()
@@ -272,7 +297,7 @@ void PBRTexture::prepare()
 	
 	createCullingBuffers();
 	createHizBuffer();
-	
+	createErrorProjectionBuffers();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
@@ -386,7 +411,7 @@ void PBRTexture::buildCommandBuffers()
 			vkCmdPipelineBarrier(drawCmdBuffers[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,nullptr, 1, &imageBarrier);
 		}
 		
-		if (true){ // depth copy的代码绘制
+		if (false){ // depth copy的代码绘制
 			VkImageMemoryBarrier imageMemBarrier = vks::initializers::imageMemoryBarrier();
 			imageMemBarrier.image = textures.hizBuffer.image;
 			imageMemBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -432,10 +457,24 @@ void PBRTexture::render()
 	if (!prepared) return;
 
 	prepareFrame();
+
+	if (drawIndexedIndirectBuffer.mapped)
+	{
+		drawIndexedIndirect.indexCount = 0;
+		memcpy(drawIndexedIndirectBuffer.mapped, &drawIndexedIndirect, sizeof(vks::DrawIndexedIndirect));
+		drawIndexedIndirectBuffer.flush();
+		vkDeviceWaitIdle(device);
+	}
+	
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
 	submitFrame();
+
+	// culling是永久更新的，所以每帧重新绘制
+	uboCullingMatrices.lastView = camera.matrices.view;
+	uboCullingMatrices.lastProj = camera.matrices.perspective;
+	memcpy(cullingUniformBuffer.mapped, &uboCullingMatrices, sizeof(vks::UBOCullingMatrices));
 
 	if (camera.updated)
 	{
@@ -651,6 +690,33 @@ void PBRTexture::createCullingBuffers()
 	VK_CHECK_RESULT(drawIndexedIndirectBuffer.map());
 }
 
+void PBRTexture::createErrorProjectionBuffers()
+{
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, naniteInstance.errorInfo.size()*sizeof(glm::vec2), &projectedErrorBuffer.buffer, &projectedErrorBuffer.memory, nullptr))
+
+	for (auto & errorInfo : naniteInstance.errorInfo)
+	{
+		errorInfos.emplace_back(errorInfo);
+	}
+	vks::vksTools::createStagingBuffer(*this, 0, errorInfos.size()*sizeof(Nanite::ErrorInfo), errorInfos.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, errorInfoBuffer);
+
+	// uniform init
+	uboErrorMatrices.view = camera.matrices.view;
+	uboErrorMatrices.proj = camera.matrices.perspective;
+	uboErrorMatrices.camRight = camera.getRight();
+	uboErrorMatrices.camUp = camera.getUp();
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		sizeof(vks::UBOErrorMatrices),
+		&errorUniformBuffer.buffer,
+		&errorUniformBuffer.memory,
+		&uboErrorMatrices));
+
+	errorUniformBuffer.device = device;
+	VK_CHECK_RESULT(errorUniformBuffer.map());
+}
+
 void PBRTexture::initLogSystem()
 {
 	auto& Logger = Log::Logger::Instance();
@@ -668,4 +734,5 @@ void PBRTexture::createNaniteScene()
 	naniteInstance = Nanite::NaniteInstance(&naniteMesh, model0);
 	naniteInstance.createBuffersForNaniteLod(*this);
 	naniteInstance.buildClusterInfo();
+	
 }

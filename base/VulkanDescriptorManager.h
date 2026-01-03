@@ -11,6 +11,7 @@ enum class DescriptorType
 	depthCopy,
 	debugQuad,
 	culling,
+	errorPorj,
 };
 
 class VulkanDescriptorManager: public Singleton<VulkanDescriptorManager>

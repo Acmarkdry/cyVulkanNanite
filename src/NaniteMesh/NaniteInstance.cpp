@@ -53,8 +53,12 @@ namespace Nanite
         for (int i = 0; i < referenceMesh->meshes.size(); i++)
         {
             totalClusterNum += referenceMesh->meshes[i].clusterNum;
+#ifdef DEBUG_LOD_START
+            break;
+#endif // DEBUG_LOD_START
         }
         clusterInfo.resize(totalClusterNum);
+        errorInfo.resize(totalClusterNum);
         size_t currClusterNum = 0, currTriangleNum = 0;
         for (int i = 0; i < referenceMesh->meshes.size(); i++)
         {
@@ -96,6 +100,7 @@ namespace Nanite
                 clusterI.mergeAABB(pMinWorld, pMaxWorld);
             }
 
+
             uint32_t currClusterIdx = -1;
             for (size_t j = 0; j < referenceMesh->meshes[i].triangleIndicesSortedByClusterIdx.size(); j++)
             {
@@ -112,8 +117,39 @@ namespace Nanite
                 }
             }
             clusterInfo[currClusterIdx + currClusterNum].triangleIndicesEnd = referenceMesh->meshes[i].triangleIndicesSortedByClusterIdx.size() + currTriangleNum;
+
+            for (size_t j = 0; j < referenceMesh->meshes[i].clusters.size(); j++)
+            {
+                auto& cluster = referenceMesh->meshes[i].clusters[j];
+                float parentError = i == referenceMesh->meshes.size() - 1 ? 1e5 : cluster.parentNormalizedError;
+                errorInfo[j + currClusterNum].errorWorld = glm::vec2(cluster.lodError, parentError);
+                glm::vec3 worldCenter = glm::vec3(rootTransform * glm::vec4(cluster.boundingSphereCenter, 1.0));
+                //TODO: 任意比例缩放
+                float worldRadius = glm::length(rootTransform * glm::vec4(glm::vec3(cluster.boundingSphereRadius,0,0), 0.0));
+                errorInfo[j + currClusterNum].centerR = glm::vec4(worldCenter, worldRadius);
+                float maxParentBoundingRadius = 0;
+                glm::vec3 parentCenter = glm::vec3(0);
+                if (i == referenceMesh->meshes.size() - 1)//last level of lod, no parent
+                {
+                    maxParentBoundingRadius = 1e-6;
+                    parentCenter = cluster.boundingSphereCenter;
+                }
+                else for (size_t k : cluster.parentClusterIndices)//get max parent bounding sphere size
+                {
+                    maxParentBoundingRadius = std::max(maxParentBoundingRadius, referenceMesh->meshes[i + 1].clusters[k].boundingSphereRadius);
+                    parentCenter += referenceMesh->meshes[i + 1].clusters[k].boundingSphereCenter;
+                }
+                parentCenter /= i == referenceMesh->meshes.size() - 1 ? 1.0 : cluster.parentClusterIndices.size();
+                glm::vec3 parentWorldCenter = glm::vec3(rootTransform * glm::vec4(parentCenter, 1.0));
+                //TODO: 任意比例缩放
+                float parentWorldRadius = glm::length(rootTransform * glm::vec4(glm::vec3(maxParentBoundingRadius, 0, 0), 0.0));
+                errorInfo[j + currClusterNum].centerRP = glm::vec4(parentWorldCenter, parentWorldRadius);
+            }
             currClusterNum += referenceMesh->meshes[i].clusterNum;
-            currTriangleNum += referenceMesh->meshes[i].triangleClusterIndex.size();
+            currTriangleNum += referenceMesh->meshes[i].triangleIndicesSortedByClusterIdx.size();
+#ifdef DEBUG_LOD_START
+            break;
+#endif // DEBUG_LOD_START
         }
 	}
 }
