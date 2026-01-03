@@ -1,6 +1,7 @@
 #version 450
 #define WORKGROUP_SIZE 8*8
 
+const float threshold = 1e-3;
 // 线性剔除，所以是一维的
 layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -39,6 +40,11 @@ layout(set = 0, binding = 4) uniform UBOMats{
 } uboMats;
 
 layout(set = 0, binding = 5) uniform sampler2D lastHZB;
+
+layout(set = 0, binding = 6) buffer readonly ProjectedError
+{
+    vec2 errorData[];
+};
 
 layout(push_constant) uniform PushConstants{
     int numClusters;
@@ -85,30 +91,32 @@ void main()
         return;
 
     bool culled = false;
-    Cluster curCluster = inputData[index];
+    // Cluster curCluster = inputData[index];
 
-    vec4 clipXY;
-    float minZ;
-    getScreenAABB(curCluster, clipXY, minZ);
+    // vec4 clipXY;
+    // float minZ;
+    // getScreenAABB(curCluster, clipXY, minZ);
 
-    // 开始计算这个cluster在屏幕里面占据的像素大小
-    vec4 screenSize = textureSize(lastHZB, 0).xyxy;
-    vec4 screenXY = clipXY*screenSize;
-    vec2 screenSpan = screenXY.zw - screenXY.xy;
-    float hizLevel = ceil(log2(max(screenSpan.x, screenSpan.y)));
-    float hizLevel1 = max(hizLevel - 1, 0.0);
-    float texScale = exp2(-hizLevel1);
-    vec2 texSpan = ceil(screenXY.zw*texScale) - floor(screenXY.xy*texScale);
+    // // 开始计算这个cluster在屏幕里面占据的像素大小
+    // vec4 screenSize = textureSize(lastHZB, 0).xyxy;
+    // vec4 screenXY = clipXY*screenSize;
+    // vec2 screenSpan = screenXY.zw - screenXY.xy;
+    // float hizLevel = ceil(log2(max(screenSpan.x, screenSpan.y)));
+    // float hizLevel1 = max(hizLevel - 1, 0.0);
+    // float texScale = exp2(-hizLevel1);
+    // vec2 texSpan = ceil(screenXY.zw*texScale) - floor(screenXY.xy*texScale);
 
-    if(texSpan.x < 2 && texSpan.y < 2) hizLevel = hizLevel1;
+    // if(texSpan.x < 2 && texSpan.y < 2) hizLevel = hizLevel1;
 
-    float z1 = textureLod(lastHZB, vec2(clipXY.x, clipXY.y), hizLevel).x;
-    float z2 = textureLod(lastHZB, vec2(clipXY.x, clipXY.w), hizLevel).x;
-    float z3 = textureLod(lastHZB, vec2(clipXY.z, clipXY.y), hizLevel).x;
-    float z4 = textureLod(lastHZB, vec2(clipXY.z, clipXY.w), hizLevel).x;
+    // float z1 = textureLod(lastHZB, vec2(clipXY.x, clipXY.y), hizLevel).x;
+    // float z2 = textureLod(lastHZB, vec2(clipXY.x, clipXY.w), hizLevel).x;
+    // float z3 = textureLod(lastHZB, vec2(clipXY.z, clipXY.y), hizLevel).x;
+    // float z4 = textureLod(lastHZB, vec2(clipXY.z, clipXY.w), hizLevel).x;
 
-    float maxHiz = max(max(z1, z2), max(z3, z4));
-    if(minZ > maxHiz + 0.01) culled = true;
+    // float maxHiz = max(max(z1, z2), max(z3, z4));
+    // if(minZ > maxHiz + 0.01) culled = true;
+
+    culled = culled || (errorData[index].y <= threshold || errorData[index].x > threshold);
 
     if(culled == false)
     {
