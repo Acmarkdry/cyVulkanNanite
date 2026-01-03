@@ -58,6 +58,8 @@ public:
 	Pipeline hizComputePipeline;
 	Pipeline depthCopyPipeline;
 	Pipeline debugQuadPipeline;
+	Pipeline cullingPipeline;
+	Pipeline errorProjPipeline;
 
 	VkSampler depthStencilSampler;
 
@@ -75,4 +77,8 @@ public:
 	vks::Buffer cullingUniformBuffer;
 	vks::Buffer drawIndexedIndirectBuffer;
 	vks::DrawIndexedIndirect drawIndexedIndirect;
+	struct CullingPushConstants
+	{
+		int numClusters;
+	} cullingPushConstants;
 };
