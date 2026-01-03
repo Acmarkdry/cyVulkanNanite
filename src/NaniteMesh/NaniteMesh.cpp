@@ -67,9 +67,10 @@ namespace Nanite
 			}
 			meshes.emplace_back(meshLOD);
 			std::cout << "LOD " << lodNums++ << " generated" << std::endl;
-
-		} 
+		}
 		while (--target);
+
+		flattenDAG();
 		
 		// TODO bvh tree
 		clusterIndexOffset.resize(meshes.size(), 0);
@@ -82,6 +83,34 @@ namespace Nanite
 			meshes[i].createBVH();
 		}
 		flattenBVH();
+	}
+
+	void NaniteMesh::flattenDAG()
+	{
+		for (int i = meshes.size() - 1; i >= 0; --i)
+		{
+			auto &mesh = meshes[i];
+			for (size_t clusterIdx = 0; clusterIdx < mesh.clusters.size(); ++clusterIdx)
+			{
+				const auto & cluster = mesh.clusters[clusterIdx];
+				NaniteAssert(i == cluster.lodLevel, "lod level not match");
+				//std::cout << "Cluster " << clusterIdx 
+				//	<< " lod " << i 
+				//	<< " parentError " << cluster.parentError
+				//	<< " lodError " << cluster.lodError
+				//	<< std::endl;
+				float normalizedParentError = (i == meshes.size() - 1) ? cluster.parentNormalizedError / cluster.parentSurfaceArea : FLT_MAX;
+				float normalizedLodError = cluster.lodError / cluster.surfaceArea;
+				NaniteAssert(cluster.parentSurfaceArea > 0 || i == meshes.size()-1, "parentSurfaceArea should be positive");
+				NaniteAssert(cluster.surfaceArea > 0, "surfaceArea should be positive");
+				flattenedClusterNodes.emplace_back(ClusterNode({ 
+					normalizedParentError,
+					normalizedLodError,
+					cluster.boundingSphereCenter, 
+					cluster.boundingSphereRadius 
+				}));
+			}
+		}
 	}
 
 	void NaniteMesh::vkglTFPrimitiveToOpenMesh(NaniteTriMesh& naniteTriMesh, const vkglTF::Primitive& prim)

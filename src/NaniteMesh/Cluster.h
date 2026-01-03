@@ -15,6 +15,7 @@ namespace Nanite
 		std::vector<uint32_t> childClusterIndices;
 		double qemError = -1;
 		double lodError = -1;
+		double childMaxLODError = -1;
 		double normalizedlodError = -1;
 		double childLODErrorMax = 0.0;
 		double parentNormalizedError = -1;
