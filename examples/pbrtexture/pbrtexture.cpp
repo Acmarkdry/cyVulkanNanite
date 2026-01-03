@@ -118,7 +118,14 @@ void PBRTexture::preparePipelines()
 	pipelineCI.pDynamicState = &dynamicState;
 	pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
 	pipelineCI.pStages = shaderStages.data();
-	pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Tangent});
+	pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({
+		vkglTF::VertexComponent::Position,
+		vkglTF::VertexComponent::Normal,
+		vkglTF::VertexComponent::UV,
+		vkglTF::VertexComponent::Tangent,
+		vkglTF::VertexComponent::Joint0,
+		vkglTF::VertexComponent::Weight0
+	});
 
 	// Skybox pipeline (background cube)
 	rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
