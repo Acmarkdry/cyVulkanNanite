@@ -25,24 +25,20 @@ namespace Nanite
 		float parentSurfaceArea = 0.0f;
 		glm::vec3 boundingSphereCenter;
 		float boundingSphereRadius;
-		
+
 		nlohmann::json toJson();
 		void fromJson(const nlohmann::json& data);
 	};
 
-    class ClusterNode
-    {
-    public:
-    	double parentMaxLODError = -1;
-    	double lodError = -1;
-    	glm::vec3 boundingSphereCenter;
-    	float boundingSphereRadius;
+	class ClusterNode
+	{
+	public:
+		double parentMaxLODError = -1;
+		double lodError = -1;
+		glm::vec3 boundingSphereCenter;
+		float boundingSphereRadius;
 
-	    nlohmann::json toJson();
-    	void fromJson(const nlohmann::json& data);
-    	
-    };
-    
-
-    
+		nlohmann::json toJson();
+		void fromJson(const nlohmann::json& data);
+	};
 }

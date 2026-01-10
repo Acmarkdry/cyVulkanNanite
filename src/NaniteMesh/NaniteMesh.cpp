@@ -51,7 +51,7 @@ namespace Nanite
 			mymesh.add_face(face_vhandles);
 		}
 	}
-	
+
 	void NaniteMesh::vkglTFMeshToOpenMesh(NaniteTriMesh& mymesh, const vkglTF::Mesh& mesh)
 	{
 		for (auto& prim : mesh.primitives)
@@ -63,7 +63,7 @@ namespace Nanite
 			mymesh.request_vertex_status();
 		}
 	}
-	
+
 	void NaniteMesh::generateNaniteInfo()
 	{
 		NaniteTriMesh mymesh;
@@ -71,7 +71,7 @@ namespace Nanite
 		int clusterGroupNum = -1;
 		int target = 6;
 		int currFaceNum = -1;
-		
+
 		mymesh.add_property(clusterGroupIndexPropHandle);
 		do
 		{

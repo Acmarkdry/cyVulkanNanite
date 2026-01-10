@@ -852,6 +852,6 @@ void PBRTexture::createNaniteScene()
 		}
 	}
 	
-	scene.createVertexIndexBuffer(vulkanDevice, queue, *this);
+	scene.createVertexIndexBuffer(*this);
 	scene.createClusterInfos();
 }

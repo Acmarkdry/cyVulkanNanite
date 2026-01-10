@@ -2,19 +2,15 @@
 
 namespace Nanite
 {
-    class BVH
-    {
-    public:
-    
-    };
+	class BVH
+	{
+	};
 
-    class NaniteBVHNode
-    {
-        public:
-    };
+	class NaniteBVHNode
+	{
+	};
 
-    class NaniteBVHNodeInfo
-    {
-        public:
-    };
+	class NaniteBVHNodeInfo
+	{
+	};
 }
