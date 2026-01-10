@@ -11,96 +11,124 @@ class VulkanDescriptorManager;
 class PBRTexture : public VulkanExampleBase
 {
 public:
-	bool displaySkybox = true;
-
-	vks::Textures textures;
-	vks::Meshes models;
-	vks::UniformBuffers uniformBuffers;
-	vks::UniformDataMatrices uniformDataMatrices;
-	vks::UniformDataParams uniformDataParams;
-	VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
-	vks::Pipelines pipelines;
-	vks::UBOCullingMatrices uboCullingMatrices;
-	vks::UBOErrorMatrices uboErrorMatrices;
-
 	PBRTexture();
-
 	~PBRTexture() override;
 
+	// 禁用拷贝
+	PBRTexture(const PBRTexture&) = delete;
+	PBRTexture& operator=(const PBRTexture&) = delete;
+
+	// 虚函数覆盖
 	void getEnabledFeatures() override;
-	void loadAssets();
-	void setupDescriptors();
-	void preparePipelines();
-	// Generate a BRDF integration map used as a look-up-table (stores roughness / NdotV)
-	void generateBRDFLUT();
-	// Generate an irradiance cube map from the environment cube map
-	void generateIrradianceCube();
-	// Prefilter environment cubemap
-	// See https://placeholderart.wordpress.com/2015/07/28/implementation-notes-runtime-environment-map-filtering-for-image-based-lighting/
-	void generatePrefilteredCube();
-	// Prepare and initialize uniform buffer containing shader uniforms
-	void prepareUniformBuffers();
-	void updateUniformBuffers();
-	void updateParams();
 	void prepare() override;
 	void buildCommandBuffers() override;
 	void render() override;
 	void viewChanged() override;
 	void OnUpdateUIOverlay(vks::UIOverlay* overlay) override;
-
-	void createHizBuffer();
 	void setupDepthStencil() override;
+
+	// 资源加载与初始化
+	void loadAssets();
+	void setupDescriptors();
+	void preparePipelines();
+
+	// IBL生成
+	void generateBRDFLUT();
+	void generateIrradianceCube();
+	void generatePrefilteredCube();
+
+	// Uniform缓冲区
+	void prepareUniformBuffers();
+	void updateUniformBuffers();
+	void updateParams();
+
+	// 缓冲区创建
+	void createHizBuffer();
 	void createCullingBuffers();
 	void createErrorProjectionBuffers();
+	void createNaniteScene();
 
 	void initLogSystem();
 
-	/*hiz buffer相关的类*/
-	std::vector<VkImageView> hizImageViews;
+private:
+	// 命令缓冲区辅助方法
+	void recordComputeCommands(VkCommandBuffer cmdBuffer, size_t frameIndex);
+	void recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRenderPassBeginInfo& rpBeginInfo);
+	void recordDepthCopyCommands(VkCommandBuffer cmdBuffer);
+	void recordHizGenerationCommands(VkCommandBuffer cmdBuffer);
+	void recordDebugQuadCommands(VkCommandBuffer cmdBuffer, const VkRenderPassBeginInfo& rpBeginInfo, const VkViewport& viewport, const VkRect2D& scissor);
+
+	// 内存屏障辅助方法
+	[[nodiscard]] static VkBufferMemoryBarrier createBufferBarrier(VkBuffer buffer, VkAccessFlags srcAccess, VkAccessFlags dstAccess);
+	[[nodiscard]] static VkImageMemoryBarrier createImageBarrier(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags srcAccess, VkAccessFlags dstAccess, const VkImageSubresourceRange& subresourceRange);
+
+	// Pipeline创建辅助
+	void createGraphicsPipelines();
+	void createComputePipelines();
+
+public:
+	// 显示设置
+	bool displaySkybox = true;
+
+	// 资源
+	vks::Textures textures;
+	vks::Meshes models;
+	vks::UniformBuffers uniformBuffers;
+	vks::UniformDataMatrices uniformDataMatrices;
+	vks::UniformDataParams uniformDataParams;
+
+	// Pipeline
+	VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
+	vks::Pipelines pipelines;
 	Pipeline hizComputePipeline;
 	Pipeline depthCopyPipeline;
 	Pipeline debugQuadPipeline;
+	Pipeline cullingPipeline;
+	Pipeline errorProjPipeline;
 
-	VkSampler depthStencilSampler;
+	// HIZ相关
+	std::vector<VkImageView> hizImageViews;
+	VkSampler depthStencilSampler{VK_NULL_HANDLE};
 
-	// nanite mesh相关
+	// Nanite相关
 	Nanite::NaniteMesh naniteMesh;
 	Nanite::NaniteScene scene;
-	
-	void createNaniteScene();
-	
-	glm::mat4 model0 = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 model1 = glm::scale(glm::mat4(1.0f), glm::vec3(0.2f, 0.2f, 0.03f));
-	std::vector<glm::mat4> modelMats = {
-		glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-		glm::mat4(1.0f),
-		glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)),
-		glm::mat4(1.0f),
-		glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)),
-	};
-	
+	std::vector<glm::mat4> modelMats;
 	std::vector<Nanite::ClusterInfo> clusterInfos;
 	std::vector<Nanite::ErrorInfo> errorInfos;
 
+	// Culling缓冲区
 	vks::Buffer culledIndicesBuffer;
 	vks::Buffer clustersInfoBuffer;
 	vks::Buffer cullingUniformBuffer;
 	vks::Buffer drawIndexedIndirectBuffer;
-	vks::DrawIndexedIndirect drawIndexedIndirect;
+	vks::DrawIndexedIndirect drawIndexedIndirect{};
 
+	// Error Projection缓冲区
 	vks::Buffer errorInfoBuffer;
 	vks::Buffer projectedErrorBuffer;
 	vks::Buffer errorUniformBuffer;
-	
+
+	// Uniform数据
+	vks::UBOCullingMatrices uboCullingMatrices;
+	vks::UBOErrorMatrices uboErrorMatrices;
+
+	// Push常量
 	struct CullingPushConstants
 	{
 		int numClusters;
-	} cullingPushConstants;
+	} cullingPushConstants{};
+
 	struct ErrorPushConstants
 	{
 		alignas(4) int numClusters;
 		alignas(8) glm::vec2 screenSize;
-	} errorPushConstants;
-	Pipeline cullingPipeline;
-	Pipeline errorProjPipeline;
+	} errorPushConstants{};
+
+private:
+	// 常量
+	static constexpr int WORKGROUP_SIZE_X = 8;
+	static constexpr int WORKGROUP_SIZE_Y = 8;
+	static constexpr int DISPATCH_GROUP_SIZE = 64;
+	static constexpr bool ENABLE_DEBUG_QUAD = false;
 };

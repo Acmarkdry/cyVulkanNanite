@@ -8,55 +8,58 @@ namespace vks
 {
 	struct Textures
 	{
-		vks::TextureCubeMap environmentCube;
+		TextureCubeMap environmentCube;
 		// Generated at runtime
-		vks::Texture2D lutBrdf;
-		vks::TextureCubeMap irradianceCube;
-		vks::TextureCubeMap prefilteredCube;
+		Texture2D lutBrdf;
+		TextureCubeMap irradianceCube;
+		TextureCubeMap prefilteredCube;
 		// Object texture maps
-		vks::Texture2D albedoMap;
-		vks::Texture2D normalMap;
-		vks::Texture2D aoMap;
-		vks::Texture2D metallicMap;
-		vks::Texture2D roughnessMap;
-		vks::Texture2D hizBuffer;
-		
+		Texture2D albedoMap;
+		Texture2D normalMap;
+		Texture2D aoMap;
+		Texture2D metallicMap;
+		Texture2D roughnessMap;
+		Texture2D hizBuffer;
+
 		void destroy();
 	};
-	
+
 	struct Meshes
 	{
 		vkglTF::Model skybox;
 		vkglTF::Model object;
 	};
-	
-	struct UniformBuffers {
+
+	struct UniformBuffers
+	{
 		Buffer scene;
 		Buffer skybox;
 		Buffer params;
-		
+
 		void destroy();
 	};
-	
-	struct UniformDataMatrices {
+
+	struct UniformDataMatrices
+	{
 		glm::mat4 projection;
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::vec3 camPos;
 	};
-	
-	struct UniformDataParams {
+
+	struct UniformDataParams
+	{
 		glm::vec4 lights[4];
 		float exposure = 4.5f;
 		float gamma = 2.2f;
 	};
-	
+
 	struct Pipelines
 	{
-		VkPipeline skybox{ VK_NULL_HANDLE };
-		VkPipeline pbr{ VK_NULL_HANDLE };
+		VkPipeline skybox{VK_NULL_HANDLE};
+		VkPipeline pbr{VK_NULL_HANDLE};
 	};
-	
+
 	struct DrawIndexedIndirect
 	{
 		uint32_t indexCount;
@@ -65,7 +68,7 @@ namespace vks
 		uint32_t firstInstance;
 		uint32_t vertexOffset;
 	};
-	
+
 	struct UBOCullingMatrices
 	{
 		glm::mat4 model;
@@ -80,18 +83,16 @@ namespace vks
 		alignas(16) glm::vec3 camUp;
 		alignas(16) glm::vec3 camRight;
 	};
-	
+
 	class VulkanResourceTracker
 	{
-	private:
 		std::unordered_set<VkImageView> imageViewSet;
-	
-	public:		
+
+	public:
 		void createImageView(VkDevice& device, const VkImageViewCreateInfo& pCreateInfo, VkImageView& imageView);
-		
+
 		void destroyImageView(VkDevice& device, VkImageView& view);
-		
+
 		void checkLeaks();
 	};
-	
 }

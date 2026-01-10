@@ -114,9 +114,9 @@ namespace vks
 		descMgr->addSetLayout(DescriptorType::errorPorj, setLayoutBindings, 1);
 
 		descMgr->createLayoutsAndSets(pbrTexture.GetDevice());
-		auto uniformBuffers = pbrTexture.uniformBuffers;
-		auto textures = pbrTexture.textures;
-		auto hizImageViews = pbrTexture.hizImageViews;
+		auto &uniformBuffers = pbrTexture.uniformBuffers;
+		auto &textures = pbrTexture.textures;
+		auto &hizImageViews = pbrTexture.hizImageViews;
 
 		descMgr->writeToSet(DescriptorType::Scene, 0, 0, &uniformBuffers.scene.descriptor);
 		descMgr->writeToSet(DescriptorType::Scene, 0, 1, &uniformBuffers.params.descriptor);

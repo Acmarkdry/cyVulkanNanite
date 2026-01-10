@@ -32,14 +32,13 @@ void vks::VulkanResourceTracker::destroyImageView(VkDevice& device, VkImageView&
 {
 	vkDestroyImageView(device, view, nullptr);
 	imageViewSet.erase(view);
-		
 }
 
 void vks::VulkanResourceTracker::checkLeaks()
 {
 	if (!imageViewSet.empty())
 	{
-		for (auto &imageView : imageViewSet)
+		for (auto& imageView : imageViewSet)
 		{
 			std::cout << "Image view not destroyed: " << imageView << std::endl;
 		}
