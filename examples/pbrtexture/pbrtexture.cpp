@@ -69,13 +69,10 @@ void PBRTexture::getEnabledFeatures()
 
 void PBRTexture::loadAssets()
 {
-	constexpr uint32_t glTFLoadingFlags = 
-		vkglTF::FileLoadingFlags::PreTransformVertices | 
-		vkglTF::FileLoadingFlags::PreMultiplyVertexColors | 
-		vkglTF::FileLoadingFlags::FlipY;
+	constexpr uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
 
 	const std::string assetPath = getAssetPath();
-    
+
 	models.skybox.loadFromFile(assetPath + "models/cube.gltf", vulkanDevice, queue, glTFLoadingFlags);
 	models.object.loadFromFile(assetPath + "models/bunny.gltf", vulkanDevice, queue, glTFLoadingFlags);
 
@@ -94,18 +91,12 @@ void PBRTexture::loadAssets()
 	createNaniteScene();
 
 	// 加载纹理
-	textures.environmentCube.loadFromFile(assetPath + "textures/hdr/gcanyon_cube.ktx", 
-		VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
-	textures.albedoMap.loadFromFile(assetPath + "models/cerberus/albedo.ktx", 
-		VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-	textures.normalMap.loadFromFile(assetPath + "models/cerberus/normal.ktx", 
-		VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-	textures.aoMap.loadFromFile(assetPath + "models/cerberus/ao.ktx", 
-		VK_FORMAT_R8_UNORM, vulkanDevice, queue);
-	textures.metallicMap.loadFromFile(assetPath + "models/cerberus/metallic.ktx", 
-		VK_FORMAT_R8_UNORM, vulkanDevice, queue);
-	textures.roughnessMap.loadFromFile(assetPath + "models/cerberus/roughness.ktx", 
-		VK_FORMAT_R8_UNORM, vulkanDevice, queue);
+	textures.environmentCube.loadFromFile(assetPath + "textures/hdr/gcanyon_cube.ktx", VK_FORMAT_R16G16B16A16_SFLOAT, vulkanDevice, queue);
+	textures.albedoMap.loadFromFile(assetPath + "models/cerberus/albedo.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+	textures.normalMap.loadFromFile(assetPath + "models/cerberus/normal.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
+	textures.aoMap.loadFromFile(assetPath + "models/cerberus/ao.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
+	textures.metallicMap.loadFromFile(assetPath + "models/cerberus/metallic.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
+	textures.roughnessMap.loadFromFile(assetPath + "models/cerberus/roughness.ktx", VK_FORMAT_R8_UNORM, vulkanDevice, queue);
 }
 
 void PBRTexture::setupDescriptors()
@@ -113,8 +104,7 @@ void PBRTexture::setupDescriptors()
 	vks::vksTools::setPbrDescriptor(*this);
 }
 
-VkBufferMemoryBarrier PBRTexture::createBufferBarrier(
-	VkBuffer buffer, VkAccessFlags srcAccess, VkAccessFlags dstAccess)
+VkBufferMemoryBarrier PBRTexture::createBufferBarrier(VkBuffer buffer, VkAccessFlags srcAccess, VkAccessFlags dstAccess)
 {
 	VkBufferMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -128,10 +118,7 @@ VkBufferMemoryBarrier PBRTexture::createBufferBarrier(
 	return barrier;
 }
 
-VkImageMemoryBarrier PBRTexture::createImageBarrier(
-	VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout,
-	VkAccessFlags srcAccess, VkAccessFlags dstAccess,
-	const VkImageSubresourceRange& subresourceRange)
+VkImageMemoryBarrier PBRTexture::createImageBarrier(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags srcAccess, VkAccessFlags dstAccess, const VkImageSubresourceRange& subresourceRange)
 {
 	VkImageMemoryBarrier barrier = vks::initializers::imageMemoryBarrier();
 	barrier.image = image;
@@ -145,80 +132,67 @@ VkImageMemoryBarrier PBRTexture::createImageBarrier(
 
 void PBRTexture::createGraphicsPipelines()
 {
-    auto descManager = VulkanDescriptorManager::getManager();
-    const std::string shaderPath = getShadersPath() + "pbrtexture/";
+	auto descManager = VulkanDescriptorManager::getManager();
+	const std::string shaderPath = getShadersPath() + "pbrtexture/";
 
-    // 通用状态
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = 
-        vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
-    VkPipelineRasterizationStateCreateInfo rasterizationState = 
-        vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-    VkPipelineColorBlendAttachmentState blendAttachmentState = 
-        vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-    VkPipelineColorBlendStateCreateInfo colorBlendState = 
-        vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-    VkPipelineDepthStencilStateCreateInfo depthStencilState = 
-        vks::initializers::pipelineDepthStencilStateCreateInfo(VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
-    VkPipelineViewportStateCreateInfo viewportState = 
-        vks::initializers::pipelineViewportStateCreateInfo(1, 1);
-    VkPipelineMultisampleStateCreateInfo multisampleState = 
-        vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
-    
-    std::vector<VkDynamicState> dynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-    VkPipelineDynamicStateCreateInfo dynamicState = 
-        vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-    
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+	// 通用状态
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+	VkPipelineRasterizationStateCreateInfo rasterizationState = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+	VkPipelineColorBlendAttachmentState blendAttachmentState = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+	VkPipelineColorBlendStateCreateInfo colorBlendState = vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
+	VkPipelineDepthStencilStateCreateInfo depthStencilState = vks::initializers::pipelineDepthStencilStateCreateInfo(VK_FALSE, VK_FALSE, VK_COMPARE_OP_LESS_OR_EQUAL);
+	VkPipelineViewportStateCreateInfo viewportState = vks::initializers::pipelineViewportStateCreateInfo(1, 1);
+	VkPipelineMultisampleStateCreateInfo multisampleState = vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
 
-    // Pipeline layout
-    VkPipelineLayoutCreateInfo pipelineLayoutCI = 
-        vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::Scene), 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+	std::vector<VkDynamicState> dynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+	VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 
-    // Pipeline创建信息
-    VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
-    pipelineCI.pInputAssemblyState = &inputAssemblyState;
-    pipelineCI.pRasterizationState = &rasterizationState;
-    pipelineCI.pColorBlendState = &colorBlendState;
-    pipelineCI.pMultisampleState = &multisampleState;
-    pipelineCI.pViewportState = &viewportState;
-    pipelineCI.pDepthStencilState = &depthStencilState;
-    pipelineCI.pDynamicState = &dynamicState;
-    pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
-    pipelineCI.pStages = shaderStages.data();
-    pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({
-        vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal,
-        vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Tangent,
-        vkglTF::VertexComponent::Joint0, vkglTF::VertexComponent::Weight0
-    });
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
-    // Skybox pipeline
-    rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-    shaderStages[0] = loadShader(shaderPath + "skybox.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(shaderPath + "skybox.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.skybox));
+	// Pipeline layout
+	VkPipelineLayoutCreateInfo pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::Scene), 1);
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
-    // PBR pipeline
-    rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    depthStencilState.depthWriteEnable = VK_TRUE;
-    depthStencilState.depthTestEnable = VK_TRUE;
-    shaderStages[0] = loadShader(shaderPath + "pbrtexture.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(shaderPath + "pbrtexture.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.pbr));
+	// Pipeline创建信息
+	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
+	pipelineCI.pInputAssemblyState = &inputAssemblyState;
+	pipelineCI.pRasterizationState = &rasterizationState;
+	pipelineCI.pColorBlendState = &colorBlendState;
+	pipelineCI.pMultisampleState = &multisampleState;
+	pipelineCI.pViewportState = &viewportState;
+	pipelineCI.pDepthStencilState = &depthStencilState;
+	pipelineCI.pDynamicState = &dynamicState;
+	pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
+	pipelineCI.pStages = shaderStages.data();
+	pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({vkglTF::VertexComponent::Position, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Tangent, vkglTF::VertexComponent::Joint0, vkglTF::VertexComponent::Weight0});
 
-    // Debug quad pipeline
-    pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::debugQuad), 1);
-    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &debugQuadPipeline.pipelineLayout));
+	// Skybox pipeline
+	rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
+	shaderStages[0] = loadShader(shaderPath + "skybox.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + "skybox.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.skybox));
 
-    pipelineCI.layout = debugQuadPipeline.pipelineLayout;
-    depthStencilState.depthWriteEnable = VK_FALSE;
-    depthStencilState.depthTestEnable = VK_FALSE;
-    rasterizationState.cullMode = VK_CULL_MODE_NONE;
-    VkPipelineVertexInputStateCreateInfo emptyVertexInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
-    pipelineCI.pVertexInputState = &emptyVertexInputState;
-    shaderStages[0] = loadShader(shaderPath + "debugQuad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader(shaderPath + "debugQuad.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &debugQuadPipeline.pipeline));
+	// PBR pipeline
+	rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	depthStencilState.depthWriteEnable = VK_TRUE;
+	depthStencilState.depthTestEnable = VK_TRUE;
+	shaderStages[0] = loadShader(shaderPath + "pbrtexture.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + "pbrtexture.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.pbr));
+
+	// Debug quad pipeline
+	pipelineLayoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(DescriptorType::debugQuad), 1);
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &debugQuadPipeline.pipelineLayout));
+
+	pipelineCI.layout = debugQuadPipeline.pipelineLayout;
+	depthStencilState.depthWriteEnable = VK_FALSE;
+	depthStencilState.depthTestEnable = VK_FALSE;
+	rasterizationState.cullMode = VK_CULL_MODE_NONE;
+	VkPipelineVertexInputStateCreateInfo emptyVertexInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
+	pipelineCI.pVertexInputState = &emptyVertexInputState;
+	shaderStages[0] = loadShader(shaderPath + "debugQuad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(shaderPath + "debugQuad.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &debugQuadPipeline.pipeline));
 }
 
 void PBRTexture::createComputePipelines()
@@ -226,11 +200,12 @@ void PBRTexture::createComputePipelines()
 	auto descManager = VulkanDescriptorManager::getManager();
 	const std::string shaderPath = getShadersPath() + "pbrtexture/";
 
-	auto createComputePipeline = [&](const std::string& shaderName, DescriptorType descType, 
-									  Pipeline& pipeline, const VkPushConstantRange* pushConstant = nullptr) {
+	auto createComputePipeline = [&](const std::string& shaderName, DescriptorType descType, Pipeline& pipeline, const VkPushConstantRange* pushConstant = nullptr)
+	{
 		VkPipelineShaderStageCreateInfo stage = loadShader(shaderPath + shaderName, VK_SHADER_STAGE_COMPUTE_BIT);
 		VkPipelineLayoutCreateInfo layoutCI = vks::initializers::pipelineLayoutCreateInfo(&descManager->getSetLayout(descType), 1);
-		if (pushConstant) {
+		if (pushConstant)
+		{
 			layoutCI.pPushConstantRanges = pushConstant;
 			layoutCI.pushConstantRangeCount = 1;
 		}
@@ -253,8 +228,8 @@ void PBRTexture::createComputePipelines()
 
 void PBRTexture::preparePipelines()
 {
-    createGraphicsPipelines();
-    createComputePipelines();
+	createGraphicsPipelines();
+	createComputePipelines();
 }
 
 
@@ -350,46 +325,44 @@ void PBRTexture::prepare()
 
 void PBRTexture::recordComputeCommands(VkCommandBuffer cmdBuffer, size_t /*frameIndex*/)
 {
-    auto descMgr = VulkanDescriptorManager::getManager();
+	auto descMgr = VulkanDescriptorManager::getManager();
 
-    // Error projection compute
-    auto barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	// Error projection compute
+	auto barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipeline);
-    errorPushConstants.numClusters = static_cast<int>(clusterInfos.size());
-    errorPushConstants.screenSize = glm::vec2(width, height);
-    vkCmdPushConstants(cmdBuffer, errorProjPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ErrorPushConstants), &errorPushConstants);
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::errorPorj, 0), 0, nullptr);
-    vkCmdDispatch(cmdBuffer, (errorPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipeline);
+	errorPushConstants.numClusters = static_cast<int>(clusterInfos.size());
+	errorPushConstants.screenSize = glm::vec2(width, height);
+	vkCmdPushConstants(cmdBuffer, errorProjPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ErrorPushConstants), &errorPushConstants);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, errorProjPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::errorPorj, 0), 0, nullptr);
+	vkCmdDispatch(cmdBuffer, (errorPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
 
-    barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	barrier = createBufferBarrier(projectedErrorBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 
-    // HIZ布局转换
-    VkImageSubresourceRange hizRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, textures.hizBuffer.mipLevels, 0, 1};
-    auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-                                          VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, hizRange);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	// HIZ布局转换
+	VkImageSubresourceRange hizRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, textures.hizBuffer.mipLevels, 0, 1};
+	auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, hizRange);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
 
-    // Culling compute
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipeline);
-    cullingPushConstants.numClusters = static_cast<int>(clusterInfos.size());
-    vkCmdPushConstants(cmdBuffer, cullingPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(CullingPushConstants), &cullingPushConstants);
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::culling, 0), 0, nullptr);
-    vkCmdDispatch(cmdBuffer, (cullingPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
+	// Culling compute
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipeline);
+	cullingPushConstants.numClusters = static_cast<int>(clusterInfos.size());
+	vkCmdPushConstants(cmdBuffer, cullingPipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(CullingPushConstants), &cullingPushConstants);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cullingPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::culling, 0), 0, nullptr);
+	vkCmdDispatch(cmdBuffer, (cullingPushConstants.numClusters + DISPATCH_GROUP_SIZE - 1) / DISPATCH_GROUP_SIZE, 1, 1);
 
-    // 恢复HIZ布局
-    imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-                                     VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, hizRange);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	// 恢复HIZ布局
+	imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, hizRange);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
 
-    // Indirect draw buffer barrier
-    barrier = createBufferBarrier(drawIndexedIndirectBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	// Indirect draw buffer barrier
+	barrier = createBufferBarrier(drawIndexedIndirectBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 
-    barrier = createBufferBarrier(culledIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDEX_READ_BIT);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	barrier = createBufferBarrier(culledIndicesBuffer.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDEX_READ_BIT);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
 void PBRTexture::buildCommandBuffers()
@@ -424,9 +397,9 @@ void PBRTexture::buildCommandBuffers()
 void PBRTexture::recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRenderPassBeginInfo& rpBeginInfo)
 {
 	auto descMgr = VulkanDescriptorManager::getManager();
-    
+
 	vkCmdBeginRenderPass(cmdBuffer, &rpBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    
+
 	VkViewport viewport = vks::initializers::viewport(static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f);
 	VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
@@ -454,37 +427,34 @@ void PBRTexture::recordRenderPassCommands(VkCommandBuffer cmdBuffer, const VkRen
 
 void PBRTexture::recordDepthCopyCommands(VkCommandBuffer cmdBuffer)
 {
-    auto descMgr = VulkanDescriptorManager::getManager();
-    VkImageSubresourceRange depthRange = vks::vksTools::genDepthSubresourceRange();
+	auto descMgr = VulkanDescriptorManager::getManager();
+	VkImageSubresourceRange depthRange = vks::vksTools::genDepthSubresourceRange();
 
-    auto imgBarrier = createImageBarrier(depthStencil.image, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, depthRange);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	auto imgBarrier = createImageBarrier(depthStencil.image, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, depthRange);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
 
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, depthCopyPipeline.pipeline);
-    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, depthCopyPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::depthCopy, 0), 0, nullptr);
-    vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, depthCopyPipeline.pipeline);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, depthCopyPipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::depthCopy, 0), 0, nullptr);
+	vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
 
-    imgBarrier = createImageBarrier(depthStencil.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, depthRange);
-    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	imgBarrier = createImageBarrier(depthStencil.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, depthRange);
+	vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
 }
 
 void PBRTexture::recordHizGenerationCommands(VkCommandBuffer cmdBuffer)
 {
-    auto descMgr = VulkanDescriptorManager::getManager();
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipeline);
+	auto descMgr = VulkanDescriptorManager::getManager();
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipeline);
 
-    for (uint32_t mip = 0; mip < textures.hizBuffer.mipLevels - 1; ++mip)
-    {
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::hiz, mip), 0, nullptr);
-        vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
+	for (uint32_t mip = 0; mip < textures.hizBuffer.mipLevels - 1; ++mip)
+	{
+		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, hizComputePipeline.pipelineLayout, 0, 1, &descMgr->getSet(DescriptorType::hiz, mip), 0, nullptr);
+		vkCmdDispatch(cmdBuffer, (width + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X, (height + WORKGROUP_SIZE_Y - 1) / WORKGROUP_SIZE_Y, 1);
 
-        VkImageSubresourceRange mipRange{VK_IMAGE_ASPECT_COLOR_BIT, mip + 1, 1, 0, 1};
-        auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, mipRange);
-        vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
-    }
+		VkImageSubresourceRange mipRange{VK_IMAGE_ASPECT_COLOR_BIT, mip + 1, 1, 0, 1};
+		auto imgBarrier = createImageBarrier(textures.hizBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, mipRange);
+		vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imgBarrier);
+	}
 }
 
 void PBRTexture::render()
