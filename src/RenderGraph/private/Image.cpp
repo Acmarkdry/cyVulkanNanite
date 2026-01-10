@@ -80,17 +80,17 @@ namespace cyRenderGraph
 		this->arrayLayersCount = arrayLayersCount;
 		this->imageType = imageType;
 
-		glm::vec3 currSize = size;
+		glm::uvec3 currSize = size;
 
 		for (size_t mipLevel = 0; mipLevel < mipsCount; mipLevel++)
 		{
 			MipInfo mipInfo;
 			mipInfo.size = currSize;
-			currSize.x /= 2;
+			currSize.x = glm::max(currSize.x / 2u, 1u);
 			if (imageType == vk::ImageType::e2D || imageType == vk::ImageType::e3D)
-				currSize.y /= 2;
+				currSize.y = glm::max(currSize.y / 2u, 1u);
 			if (imageType == vk::ImageType::e3D)
-				currSize.z /= 2;
+				currSize.z = glm::max(currSize.z / 2u, 1u);
 
 			mipInfo.layerInfos.resize(arrayLayersCount);
 			for (size_t layerIndex = 0; layerIndex < arrayLayersCount; layerIndex++)

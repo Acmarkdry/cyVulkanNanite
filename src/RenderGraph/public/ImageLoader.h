@@ -1,4 +1,14 @@
-#pragma once
+﻿#pragma once
+
+// GLM 配置宏必须在任何 GLM/GLI 头文件之前定义，
+// 否则 #pragma once 会导致 gli/type.hpp 中的 qualifier 无法解析（C2061）
+#ifndef GLM_FORCE_EXPLICIT_CTOR
+#   define GLM_FORCE_EXPLICIT_CTOR
+#endif
+#ifndef GLM_ENABLE_EXPERIMENTAL
+#   define GLM_ENABLE_EXPERIMENTAL
+#endif
+
 #include <vulkan/vulkan.hpp>
 #include <gli/gli.hpp>
 

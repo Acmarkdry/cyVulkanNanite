@@ -98,7 +98,7 @@ namespace cyRenderGraph
 		{
 			swapchainViewProxyId = core->GetRenderGraph()->AddExternalImageView(currSwapchainImageView);
 		}
-		core->GetRenderGraph()->AddPass(RenderGraph::FrameSyncBeginPassDesc());
+		core->GetRenderGraph()->AddPass(FrameSyncBeginPassDesc());
 
 		memoryPool->MapBuffer(currFrame.shaderMemoryBuffer.get());
 
@@ -115,7 +115,7 @@ namespace cyRenderGraph
 		auto &currFrame = frames[frameIndex];
 
 		core->GetRenderGraph()->AddImagePresent(swapchainImageViewProxies[currSwapchainImageView]->Id());
-		core->GetRenderGraph()->AddPass(RenderGraph::FrameSyncEndPassDesc());
+		core->GetRenderGraph()->AddPass(FrameSyncEndPassDesc());
 
 		auto bufferBeginInfo = vk::CommandBufferBeginInfo()
 			.setFlags(vk::CommandBufferUsageFlagBits::eSimultaneousUse);

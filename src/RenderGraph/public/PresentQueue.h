@@ -4,6 +4,7 @@
 #include "ImageView.h"
 #include "Profiler.h"
 #include "RenderGraphLink.h"
+#include "ResourceProxy.h"
 #include "ShaderMemoryPool.h"
 #include "Swapchain.h"
 #include "WindowDesc.h"
@@ -38,7 +39,7 @@ namespace cyRenderGraph
 		{
 			ShaderMemoryPool* memoryPool;
 			size_t frameIndex;
-			RenderGraph::ImageViewProxyId swapchainImageViewProxyId;
+			ImageViewProxyId swapchainImageViewProxyId;
 		};
 
 		FrameInfo BeginFrame();

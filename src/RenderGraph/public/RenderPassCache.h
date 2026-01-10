@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <algorithm>
 #include <map>
 #include <vector>
@@ -93,19 +93,19 @@ namespace cyRenderGraph
 			
 			auto rect = vk::Rect2D(vk::Offset2D(), renderAreaExtent);
 			auto passBeginInfo = vk::RenderPassBeginInfo()
-			                     .setRenderPass(renderPass->GetHandle())
-			                     .setFramebuffer(framebuffer->GetHandle())
-			                     .setRenderArea(rect)
-			                     .setClearValueCount(static_cast<uint32_t>(clearValues.size()))
-			                     .setPClearValues(clearValues.data());
+								 .setRenderPass(renderPass->GetHandle())
+								 .setFramebuffer(framebuffer->GetHandle())
+								 .setRenderArea(rect)
+								 .setClearValueCount(static_cast<uint32_t>(clearValues.size()))
+								 .setPClearValues(clearValues.data());
 
 			commandBuffer.beginRenderPass(passBeginInfo, vk::SubpassContents::eInline);
 
 			auto viewport = vk::Viewport()
-			                .setWidth(static_cast<float>(renderAreaExtent.width))
-			                .setHeight(static_cast<float>(renderAreaExtent.height))
-			                .setMinDepth(0.0f)
-			                .setMaxDepth(1.0f);
+							.setWidth(static_cast<float>(renderAreaExtent.width))
+							.setHeight(static_cast<float>(renderAreaExtent.height))
+							.setMinDepth(0.0f)
+							.setMaxDepth(1.0f);
 
 			commandBuffer.setViewport(0, {viewport});
 			commandBuffer.setScissor(0, {vk::Rect2D(vk::Offset2D(), renderAreaExtent)});

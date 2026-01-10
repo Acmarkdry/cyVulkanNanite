@@ -50,8 +50,8 @@ namespace cyRenderGraph
 		ImageAccessPattern dstAccessPattern;
 	};
 
-	static ImageAccessPattern GetSrcImageAccessPattern(ImageUsageTypes usageType);
+	ImageAccessPattern GetSrcImageAccessPattern(ImageUsageTypes usageType);
 
-	static ImageAccessPattern GetDstImageAccessPattern(ImageUsageTypes usageType);
+	ImageAccessPattern GetDstImageAccessPattern(ImageUsageTypes usageType);
 	
 }
