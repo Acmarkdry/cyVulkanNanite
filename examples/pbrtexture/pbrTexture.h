@@ -65,10 +65,19 @@ public:
 
 	// nanite mesh相关
 	Nanite::NaniteMesh naniteMesh;
-	Nanite::NaniteInstance naniteInstance;
+	Nanite::NaniteScene scene;
+	
 	void createNaniteScene();
 	
-	glm::mat4 modelPos = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 model0 = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 model1 = glm::scale(glm::mat4(1.0f), glm::vec3(0.2f, 0.2f, 0.03f));
+	std::vector<glm::mat4> modelMats = {
+		glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 3)), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+		glm::mat4(1.0f),
+		glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)),
+		glm::mat4(1.0f),
+		glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)),
+	};
 	
 	std::vector<Nanite::ClusterInfo> clusterInfos;
 	std::vector<Nanite::ErrorInfo> errorInfos;
