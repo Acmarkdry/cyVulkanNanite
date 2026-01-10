@@ -6,10 +6,10 @@
 
 namespace Nanite
 {
-	constexpr const int ClusterTargetSize = 56;
-	constexpr const int ClusterMaxSize = 64;
-	constexpr const int ClusterGroupTargetSize = 15;
-	constexpr const int ClusterGroupMaxSize = 32;
+	constexpr const int CLUSTER_SIZE = 56;
+	constexpr const int CLUSTER_THRESHOLD = 64;
+	constexpr const int CLUSTER_GROUP_SIZE = 15;
+	constexpr const int CLUSTER_GROUP_THRESHOLD = 32;
 	
     class Graph
     {
@@ -59,10 +59,11 @@ namespace Nanite
     class ClusterInfo
     {
         public:
-	        alignas(16) glm::vec3 pMinWorld = glm::vec3(FLT_MAX);
-	        alignas(16) glm::vec3 pMaxWorld = glm::vec3(-FLT_MAX);
-	        alignas(4) uint32_t triangleIndicesStart;
-	        alignas(4) uint32_t triangleIndicesEnd;
+    		alignas(16) glm::vec3 pMinWorld = glm::vec3(FLT_MAX);
+    		alignas(16) glm::vec3 pMaxWorld = glm::vec3(-FLT_MAX);
+    		alignas(4) uint32_t triangleIndicesStart;
+    		alignas(4) uint32_t triangleIndicesEnd;
+    		alignas(4) uint32_t objectIdx;
 	        
 	        void mergeAABB(const glm::vec3& pMin, const glm::vec3& pMax)
 	        {

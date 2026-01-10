@@ -7,6 +7,7 @@
 #include "../utils.h"
 #include <filesystem>
 #include <json.hpp>
+#include <OpenMesh/Core/IO/MeshIO.hh>
 
 namespace Nanite
 {
@@ -24,96 +25,7 @@ namespace Nanite
 		}
 	}
 
-	void NaniteMesh::generateNaniteInfo()
-	{
-		NaniteTriMesh naniteTriMesh;
-		vkglTFMeshToOpenMesh(naniteTriMesh, *vkglTFMesh);
-
-		int clusterGroupNum = -1;
-		int target = 3;
-		int currFaceNum = -1;
-		naniteTriMesh.add_property(clusterGroupIndexPropHandle);
-
-		// lod
-		do
-		{
-			NaniteLodMesh meshLOD;
-			meshLOD.mesh = naniteTriMesh;
-			meshLOD.lodLevel = lodNums;
-			meshLOD.clusterGroupIndexPropHandle = clusterGroupIndexPropHandle;
-			if (clusterGroupNum > 0) {
-				meshLOD.oldClusterGroups.resize(clusterGroupNum);
-				meshLOD.assignTriangleClusterGroup(meshes.back()); 
-			}
-			else {
-				meshLOD.buildTriangleGraph();
-				meshLOD.generateCluster();
-			}
-			if (meshes.size() > 0) {
-				auto& lastMeshLOD = meshes[meshes.size() - 1];
-				// TODO
-
-			}
-			
-			meshLOD.buildClusterGraph();
-			meshLOD.colorClusterGraph(); 
-			meshLOD.generateClusterGroup();
-			clusterGroupNum = meshLOD.clusterGroupNum;
-
-			naniteTriMesh = meshLOD.mesh;
-			if (clusterGroupNum > 1) 
-			{
-				meshLOD.simplifyMesh(naniteTriMesh); 
-			}
-			meshes.emplace_back(meshLOD);
-			std::cout << "LOD " << lodNums++ << " generated" << std::endl;
-		}
-		while (--target);
-
-		flattenDAG();
-		
-		// TODO bvh tree
-		clusterIndexOffset.resize(meshes.size(), 0);
-		for (size_t i = 0; i < meshes.size(); i++)
-		{
-			if (i != 0)
-			{
-				clusterIndexOffset[i] = clusterIndexOffset[i - 1] + meshes[i - 1].clusterNum;
-			}
-			meshes[i].createBVH();
-		}
-		flattenBVH();
-	}
-
-	void NaniteMesh::flattenDAG()
-	{
-		for (int i = meshes.size() - 1; i >= 0; --i)
-		{
-			auto &mesh = meshes[i];
-			for (size_t clusterIdx = 0; clusterIdx < mesh.clusters.size(); ++clusterIdx)
-			{
-				const auto & cluster = mesh.clusters[clusterIdx];
-				NaniteAssert(i == cluster.lodLevel, "lod level not match");
-				//std::cout << "Cluster " << clusterIdx 
-				//	<< " lod " << i 
-				//	<< " parentError " << cluster.parentError
-				//	<< " lodError " << cluster.lodError
-				//	<< std::endl;
-				float normalizedParentError = (i == meshes.size() - 1) ? cluster.parentNormalizedError / cluster.parentSurfaceArea : FLT_MAX;
-				float normalizedLodError = cluster.lodError / cluster.surfaceArea;
-				NaniteAssert(cluster.parentSurfaceArea > 0 || i == meshes.size()-1, "parentSurfaceArea should be positive");
-				NaniteAssert(cluster.surfaceArea > 0, "surfaceArea should be positive");
-				flattenedClusterNodes.emplace_back(ClusterNode({ 
-					normalizedParentError,
-					normalizedLodError,
-					cluster.boundingSphereCenter, 
-					cluster.boundingSphereRadius 
-				}));
-			}
-		}
-	}
-
-	void NaniteMesh::vkglTFPrimitiveToOpenMesh(NaniteTriMesh& naniteTriMesh, const vkglTF::Primitive& prim)
+	void NaniteMesh::vkglTFPrimitiveToOpenMesh(NaniteTriMesh& mymesh, const vkglTF::Primitive& prim)
 	{
 		int vertStart = prim.firstVertex;
 		int vertEnd = prim.firstVertex + prim.vertexCount;
@@ -121,41 +33,79 @@ namespace Nanite
 		for (int i = vertStart; i != vertEnd; i++)
 		{
 			auto& vert = vkglTFModel->vertexBuffer[i];
-			auto vhandle = naniteTriMesh.add_vertex(NaniteTriMesh::Point(vert.pos.x, vert.pos.y, vert.pos.z));
-			naniteTriMesh.set_normal(vhandle, NaniteTriMesh::Normal(vert.normal.x, vert.normal.y, vert.normal.z));
-			naniteTriMesh.set_texcoord2D(vhandle, NaniteTriMesh::TexCoord2D(vert.uv.x, vert.uv.y));
+			auto vhandle = mymesh.add_vertex(NaniteTriMesh::Point(vert.pos.x, vert.pos.y, vert.pos.z));
+			mymesh.set_normal(vhandle, NaniteTriMesh::Normal(vert.normal.x, vert.normal.y, vert.normal.z));
+			mymesh.set_texcoord2D(vhandle, NaniteTriMesh::TexCoord2D(vert.uv.x, vert.uv.y));
 			vhandles.emplace_back(vhandle);
 		}
 		int indStart = prim.firstIndex;
 		int indEnd = prim.firstIndex + prim.indexCount;
 		for (int i = indStart; i != indEnd; i += 3)
 		{
-			int i0 = vkglTFModel->indexBuffer[i] - vertStart, i1 = vkglTFModel->indexBuffer[i + 1] - vertStart, i2 =
-				    vkglTFModel->indexBuffer[i + 2] - vertStart;
+			int i0 = vkglTFModel->indexBuffer[i] - vertStart, i1 = vkglTFModel->indexBuffer[i + 1] - vertStart, i2 = vkglTFModel->indexBuffer[i + 2] - vertStart;
 			std::vector<NaniteTriMesh::VertexHandle> face_vhandles;
 			face_vhandles.clear();
 			face_vhandles.emplace_back(vhandles[i0]);
 			face_vhandles.emplace_back(vhandles[i1]);
 			face_vhandles.emplace_back(vhandles[i2]);
-			naniteTriMesh.add_face(face_vhandles);
+			mymesh.add_face(face_vhandles);
 		}
 	}
-
-
-	void NaniteMesh::vkglTFMeshToOpenMesh(NaniteTriMesh& naniteTriMesh, const vkglTF::Mesh& mesh)
+	
+	void NaniteMesh::vkglTFMeshToOpenMesh(NaniteTriMesh& mymesh, const vkglTF::Mesh& mesh)
 	{
 		for (auto& prim : mesh.primitives)
 		{
-			vkglTFPrimitiveToOpenMesh(naniteTriMesh, *prim);
-			// 为网格的face edge vertex分配额外内存，用来存储状态属性
-			naniteTriMesh.request_face_status();
-			naniteTriMesh.request_edge_status();
-			naniteTriMesh.request_vertex_status();
+			vkglTFPrimitiveToOpenMesh(mymesh, *prim);
+
+			mymesh.request_face_status();
+			mymesh.request_edge_status();
+			mymesh.request_vertex_status();
 		}
 	}
-
-	void NaniteMesh::flattenBVH()
+	
+	void NaniteMesh::generateNaniteInfo()
 	{
+		NaniteTriMesh mymesh;
+		vkglTFMeshToOpenMesh(mymesh, *vkglTFMesh);
+		int clusterGroupNum = -1;
+		int target = 6;
+		int currFaceNum = -1;
+		
+		mymesh.add_property(clusterGroupIndexPropHandle);
+		do
+		{
+			// For each lod mesh
+			NaniteLodMesh meshLOD;
+			meshLOD.mesh = mymesh;
+			meshLOD.lodLevel = lodNums;
+			meshLOD.clusterGroupIndexPropHandle = clusterGroupIndexPropHandle;
+			if (clusterGroupNum > 0)
+			{
+				meshLOD.oldClusterGroups.resize(clusterGroupNum);
+				meshLOD.assignTriangleClusterGroup(meshes.back());
+			}
+			else
+			{
+				meshLOD.buildTriangleGraph();
+				meshLOD.generateCluster();
+			}
+
+			meshLOD.buildClusterGraph();
+			meshLOD.colorClusterGraph();
+			meshLOD.generateClusterGroup();
+			currFaceNum = meshLOD.mesh.n_faces();
+			clusterGroupNum = meshLOD.clusterGroupNum;
+
+			mymesh = meshLOD.mesh;
+			if (clusterGroupNum > 1)
+			{
+				meshLOD.simplifyMesh(mymesh);
+			}
+			meshes.emplace_back(meshLOD);
+			std::cout << "LOD " << lodNums++ << " generated" << std::endl;
+		}
+		while (--target);
 	}
 
 	void NaniteMesh::serialize(const std::string& filepath)
@@ -166,88 +116,91 @@ namespace Nanite
 		{
 			if (std::filesystem::create_directory(directoryPath))
 			{
-				std::cout << "Directory created success" << std::endl;
+				std::cout << "Directory created successfully." << std::endl;
 			}
 			else
 			{
-				std::cout << "Directory creation failed" << std::endl;
+				std::cout << "Failed to create directory or it already exists. Dir:" << filepath << std::endl;
 			}
 		}
-		catch (const std::filesystem::filesystem_error &error)
+		catch (const std::filesystem::filesystem_error& e)
 		{
-			NaniteAssert(false, "error");
+			NaniteAssert(false, "Error creating directory");
 		}
 
 		for (size_t i = 0; i < meshes.size(); i++)
 		{
 			auto& mesh = meshes[i];
-			std::string output_filename = std::string(filepath) + "lod_" + std::to_string(i) + ".obj";
-			if (!OpenMesh::IO::write_mesh(mesh.mesh, output_filename))
+			std::string output_filename = std::string(filepath) + "LOD_" + std::to_string(i) + ".obj";
+			// Export the mesh to the specified file
+			if (!OpenMesh::IO::write_mesh(mesh.mesh, output_filename, OpenMesh::IO::Options::VertexNormal | OpenMesh::IO::Options::VertexTexCoord))
 			{
-				std::cerr << "error exporting mesh to" << output_filename << std::endl;
+				std::cerr << "Error exporting mesh to " << output_filename << std::endl;
 			}
 		}
 
 		nlohmann::json result;
-		for (size_t i = 0; i < flattenedClusterNodes.size(); i++)
-		{
-			result["flattenedClusterNodes"][i] = flattenedClusterNodes[i].toJson();
-		}
 		for (size_t i = 0; i < meshes.size(); i++)
 		{
 			result["mesh"][i] = meshes[i].toJson();
 		}
 		result[cache_time_key] = std::time(nullptr);
 		result["lodNums"] = lodNums;
-		result["clusterNodeSize"] = flattenedClusterNodes.size();
+
 		// Save the JSON data to a file
 		std::ofstream file(std::string(filepath) + "nanite_info.json");
-		if (file.is_open()) {
+		if (file.is_open())
+		{
 			file << result.dump(2); // Pretty-print with an indentation of 2 spaces
 			file.close();
 		}
-		else {
-			NaniteAssert(0, "Error opening file for serialization");
+		else
+		{
+			NaniteAssert(false, "Error opening file for serialization");
 		}
 	}
 
 	void NaniteMesh::deserialize(const std::string& filepath)
 	{
-		std::ifstream inputFile(filepath + "nanite_info.json");
-		if (inputFile.is_open())
-		{
-			nlohmann::json loadedJson;
-			inputFile >> loadedJson;
+		std::ifstream inputFile(std::string(filepath) + "nanite_info.json");
 
-			for (const auto&element: loadedJson["flattenedClusterNodes"])
-			{
-				ClusterNode node;
-				node.fromJson(element);
-				flattenedClusterNodes.emplace_back(node);
-			}
+		NaniteAssert(inputFile.is_open(), "Error opening file for deserialization");
+		nlohmann::json loadedJson;
+		inputFile >> loadedJson;
 
-			lodNums = loadedJson["lodNums"].get<uint32_t>();
-			meshes.resize(lodNums);
-			for (int i = 0;i < lodNums; i++)
-			{
-				auto& meshLod = meshes[i];
-				meshLod.fromJson(loadedJson["mesh"][i]);
-			}
-		}
-		else
+		lodNums = loadedJson["lodNums"].get<uint32_t>();
+		meshes.resize(lodNums);
+		for (int i = 0; i < lodNums; ++i)
 		{
-			NaniteAssert(false, "Error opening file for deserialization");
+			auto& meshLOD = meshes[i];
+			meshLOD.fromJson(loadedJson["mesh"][i]);
+
+			float percentage = static_cast<float>(i + 1) / lodNums * 100.0;
+			std::cout << "\r";
+			std::cout << "[Loading] Mesh Info: " << std::fixed << std::setw(6) << std::setprecision(2) << percentage << "%";
+			std::cout.flush();
 		}
+		std::cout << std::endl;
 
 		for (size_t i = 0; i < lodNums; i++)
 		{
-			std::string outputFileName = std::string(filepath) + "lod_" + std::to_string(i) + ".obj";
-			if (!OpenMesh::IO::read_mesh(meshes[i].mesh, outputFileName))
+			std::string output_filename = std::string(filepath) + "LOD_" + std::to_string(i) + ".obj";
+			meshes[i].mesh.request_vertex_normals();
+			meshes[i].mesh.request_vertex_texcoords2D();
+			OpenMesh::IO::Options opt = OpenMesh::IO::Options::VertexNormal | OpenMesh::IO::Options::VertexTexCoord;
+			if (!OpenMesh::IO::read_mesh(meshes[i].mesh, output_filename, opt))
 			{
 				NaniteAssert(false, "failed to load mesh");
 			}
+			NaniteAssert(meshes[i].mesh.has_vertex_normals(), "mesh has no normals");
 			meshes[i].lodLevel = i;
+
+			std::cout << "\r";
+			float percentage = static_cast<float>(i + 1) / lodNums * 100.0;
+			std::cout << "[Loading] Mesh LOD: " << std::fixed << std::setw(6) << std::setprecision(2) << percentage << "%";
+			std::cout.flush();
 		}
+		std::cout << std::endl;
 	}
 
 	void NaniteMesh::initNaniteInfo(const std::string& filepath, bool useCache)
@@ -267,6 +220,7 @@ namespace Nanite
 		if (useCache)
 		{
 			std::ifstream inputFile(cachePath + "nanite_info.json");
+			// TODO: Check cache time to see if cache needs to be rebuilt
 			if (inputFile.is_open())
 			{
 				deserialize(cachePath);
@@ -280,11 +234,67 @@ namespace Nanite
 
 		if (!hasInitialized)
 		{
-			std::cerr << "Start building..." << std::endl;
-			// 这里开始生成cluster
 			generateNaniteInfo();
 			serialize(cachePath);
 			std::cout << cachePath << "nanite_info.json" << " generated" << std::endl;
+			//checkDeserializationResult(cachePath);
+		}
+	}
+
+	void NaniteMesh::checkDeserializationResult(const std::string& filepath)
+	{
+		std::ifstream inputFile(std::string(filepath) + "nanite_info.json");
+
+		NaniteAssert(inputFile.is_open(), "Error opening file for deserialization");
+		nlohmann::json loadedJson;
+		inputFile >> loadedJson;
+
+		lodNums = loadedJson["lodNums"].get<uint32_t>();
+		debugMeshes.resize(lodNums);
+		for (int i = 0; i < lodNums; ++i)
+		{
+			auto& meshLOD = debugMeshes[i];
+			meshLOD.fromJson(loadedJson["mesh"][i]);
+		}
+
+		for (size_t i = 0; i < lodNums; i++)
+		{
+			std::string output_filename = std::string(filepath) + "LOD_" + std::to_string(i) + ".obj";
+			debugMeshes[i].mesh.request_vertex_normals();
+			OpenMesh::IO::Options opt = OpenMesh::IO::Options::VertexNormal;
+			if (!OpenMesh::IO::read_mesh(debugMeshes[i].mesh, output_filename, opt))
+			{
+				NaniteAssert(false, "failed to load mesh");
+			}
+			NaniteAssert(debugMeshes[i].mesh.has_vertex_normals(), "mesh has no normals");
+			debugMeshes[i].lodLevel = i;
+		}
+
+		for (size_t i = 0; i < lodNums; i++)
+		{
+			auto& mesh = meshes[i];
+			auto& debugMesh = debugMeshes[i];
+			TEST(mesh.clusters.size() == debugMesh.clusters.size(), "cluster size match");
+			for (size_t clusterIdx = 0; clusterIdx < mesh.clusters.size(); clusterIdx++)
+			{
+				const auto& cluster = mesh.clusters[clusterIdx];
+				const auto& debugCluster = debugMesh.clusters[clusterIdx];
+				TEST(cluster.parentNormalizedError == debugCluster.parentNormalizedError, "parentNormalizedError match");
+				TEST(cluster.lodError == debugCluster.lodError, "lodError match");
+				TEST(cluster.boundingSphereCenter == debugCluster.boundingSphereCenter, "boundingSphereCenter match");
+				TEST(cluster.boundingSphereRadius == debugCluster.boundingSphereRadius, "boundingSphereRadius match");
+			}
+			TEST(mesh.mesh.n_faces() == debugMesh.mesh.n_faces(), "face size match");
+			TEST(mesh.mesh.n_vertices() == debugMesh.mesh.n_vertices(), "vertex size match");
+			for (const auto& vhandle : mesh.mesh.vertices())
+			{
+				auto debugVhandle = debugMesh.mesh.vertex_handle(vhandle.idx());
+				//std::cout << "mesh normal: " << mesh.mesh.normal(vhandle)[0] << " " << mesh.mesh.normal(vhandle)[1] << " " << mesh.mesh.normal(vhandle)[2] << std::endl;
+				//std::cout << "debug normal: " << debugMesh.mesh.normal(debugVhandle)[0] << " " << debugMesh.mesh.normal(debugVhandle)[1] << " " << debugMesh.mesh.normal(debugVhandle)[2] << std::endl;
+				TEST((mesh.mesh.point(vhandle) - debugMesh.mesh.point(debugVhandle)).length() < 1e-5f, "vertex position match");
+				TEST((mesh.mesh.normal(vhandle) - debugMesh.mesh.normal(debugVhandle)).length() < 1e-5f, "vertex normal match");
+				//NaniteAssert((mesh.mesh.texcoord2D(vhandle) - debugMesh.mesh.texcoord2D(debugVhandle)).length() < 1e-5f, "vertex texcoord not match");
+			}
 		}
 	}
 
@@ -297,10 +307,5 @@ namespace Nanite
 			if (meshes[i].mesh.n_faces() != other.meshes[i].mesh.n_faces()) return false;
 		}
 		return true;
-	}
-
-	void NaniteMesh::buildClusterInfo()
-	{
-		NaniteAssert(false, "buildClusterInfo not implemented");
 	}
 }

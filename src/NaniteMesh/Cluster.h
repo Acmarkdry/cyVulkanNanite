@@ -15,7 +15,6 @@ namespace Nanite
 		std::vector<uint32_t> childClusterIndices;
 		double qemError = -1;
 		double lodError = -1;
-		double childMaxLODError = -1;
 		double normalizedlodError = -1;
 		double childLODErrorMax = 0.0;
 		double parentNormalizedError = -1;
@@ -26,8 +25,9 @@ namespace Nanite
 		float parentSurfaceArea = 0.0f;
 		glm::vec3 boundingSphereCenter;
 		float boundingSphereRadius;
-		glm::vec3 parentBoundingSphereCenter;
-		float parentBoundingSphereRadius;
+		
+		nlohmann::json toJson();
+		void fromJson(const nlohmann::json& data);
 	};
 
     class ClusterNode

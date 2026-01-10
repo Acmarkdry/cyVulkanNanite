@@ -20,13 +20,14 @@ namespace Nanite
 		glm::mat4 rootTransform;
 		std::vector<ClusterInfo> clusterInfo;
 		std::vector<ErrorInfo> errorInfo;
-		vks::Buffer vertices;
-		vks::Buffer indices;
-		
+		vkglTF::Model::Vertices vertices;
+		vkglTF::Model::Indices indices;
+		std::vector<vkglTF::Vertex> vertexBuffer;
+		std::vector<uint32_t> indexBuffer;
 		NaniteInstance() = default;
 		NaniteInstance(NaniteMesh* mesh, const glm::mat4 model):referenceMesh(mesh), rootTransform(model){}
 		
-		void createBuffersForNaniteLod(VulkanExampleBase &link);
+		void initBufferForNaniteLODs();
 		void buildClusterInfo();
 	};
 }
