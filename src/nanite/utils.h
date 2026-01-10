@@ -2,7 +2,7 @@
 #include <source_location>
 #include <iostream>
 #include <format>  // C++20
-#include <glm/detail/type_vec.hpp>
+#include <glm/vec3.hpp>
 
 namespace Nanite
 {

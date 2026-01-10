@@ -1,5 +1,4 @@
 ﻿#pragma once
-#include <glm/detail/type_mat.hpp>
 #include <tinygltf/tiny_gltf.h>
 
 #include "Const.h"

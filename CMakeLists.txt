@@ -93,6 +93,19 @@ ENDIF()
 # Set preprocessor defines
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNOMINMAX -D_USE_MATH_DEFINES")
 
+# GLM 配置宏（全局）：
+# - GLM_FORCE_IGNORE_VERSION: GLI 内嵌了一个旧版 GLM (external/gli/external/glm)，
+#   当两者同时被 include 到同一翻译单元时，GLM setup.hpp 会触发版本冲突 error。
+#   此宏告知 GLM 忽略该检查，确保项目代码使用 external/glm (0.9.9.8) 的同时
+#   GLI 能正常使用自己嵌套的旧版 GLM。
+# - GLM_FORCE_EXPLICIT_CTOR: 启用严格显式构造，防止 uvec3/vec3 隐式转换。
+# - GLM_ENABLE_EXPERIMENTAL: 启用 GLM GTX 实验性扩展。
+add_definitions(
+    -DGLM_FORCE_IGNORE_VERSION
+    -DGLM_FORCE_EXPLICIT_CTOR
+    -DGLM_ENABLE_EXPERIMENTAL
+)
+
 # Clang specific stuff
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-enum")
