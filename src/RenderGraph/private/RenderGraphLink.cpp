@@ -20,7 +20,7 @@ namespace cyRenderGraph
 
     this->instance = CreateInstance(resIntanceExtensions, validationLayers);
     //loader = vk::DispatchLoaderDynamic();
-    loader = vk::detail::DispatchLoaderDynamic(instance.get(), vkGetInstanceProcAddr);
+    loader = vk::DispatchLoaderDynamic(instance.get(), vkGetInstanceProcAddr);
 
     auto prop = vk::enumerateInstanceLayerProperties();
     
@@ -174,7 +174,7 @@ namespace cyRenderGraph
     return vk::createInstanceUnique(instanceCreateInfo);
   }
 
-  vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::detail::DispatchLoaderDynamic> Core::CreateDebugUtilsMessenger(vk::Instance instance, vk::PFN_DebugUtilsMessengerCallbackEXT debugCallback, vk::detail::DispatchLoaderDynamic &loader)
+  vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::DispatchLoaderDynamic> Core::CreateDebugUtilsMessenger(vk::Instance instance, PFN_vkDebugUtilsMessengerCallbackEXT debugCallback, vk::DispatchLoaderDynamic &loader)
   {
     auto messengerCreateInfo = vk::DebugUtilsMessengerCreateInfoEXT()
       .setMessageSeverity(vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError/* | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo*/)
@@ -186,10 +186,10 @@ namespace cyRenderGraph
   }
 
   
-  vk::Bool32 Core::DebugMessageCallback(
-    vk::DebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
-    vk::DebugUtilsMessageTypeFlagsEXT              messageTypes,
-    const vk::DebugUtilsMessengerCallbackDataEXT * pCallbackData,
+  VkBool32 Core::DebugMessageCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT              messageTypes,
+    const VkDebugUtilsMessengerCallbackDataEXT * pCallbackData,
     void *pUserData )
   {
     std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;

@@ -61,12 +61,12 @@ namespace cyRenderGraph
 	private:
 		static vk::UniqueInstance CreateInstance(const std::vector<const char*>& instanceExtensions, const std::vector<const char*>& validationLayers);
 
-		static vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::detail::DispatchLoaderDynamic> CreateDebugUtilsMessenger(vk::Instance instance, vk::PFN_DebugUtilsMessengerCallbackEXT debugCallback, vk::detail::DispatchLoaderDynamic& loader);
+		static vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::DispatchLoaderDynamic> CreateDebugUtilsMessenger(vk::Instance instance, PFN_vkDebugUtilsMessengerCallbackEXT debugCallback, vk::DispatchLoaderDynamic& loader);
 
-		static vk::Bool32 DebugMessageCallback(
-			vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-			vk::DebugUtilsMessageTypeFlagsEXT messageTypes,
-			const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+		static VkBool32 DebugMessageCallback(
+			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+			VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+			const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 			void* pUserData);
 
 		friend class Swapchain;
@@ -79,8 +79,8 @@ namespace cyRenderGraph
 		static vk::UniqueCommandPool CreateCommandPool(vk::Device logicalDevice, uint32_t familyIndex);
 
 		vk::UniqueInstance instance;
-		vk::detail::DispatchLoaderDynamic loader;
-		vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::detail::DispatchLoaderDynamic> debugUtilsMessenger;
+		vk::DispatchLoaderDynamic loader;
+		vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::DispatchLoaderDynamic> debugUtilsMessenger;
 		vk::PhysicalDevice physicalDevice;
 		vk::UniqueDevice logicalDevice;
 		vk::UniqueCommandPool commandPool;

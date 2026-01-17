@@ -61,7 +61,7 @@ namespace cyRenderGraph
 	class ImageCache
 	{
 	public:
-		ImageCache(vk::PhysicalDevice _physicalDevice, vk::Device _logicalDevice, vk::detail::DispatchLoaderDynamic _loader) : physicalDevice(_physicalDevice), logicalDevice(_logicalDevice), loader(_loader)
+		ImageCache(vk::PhysicalDevice _physicalDevice, vk::Device _logicalDevice, vk::DispatchLoaderDynamic _loader) : physicalDevice(_physicalDevice), logicalDevice(_logicalDevice), loader(_loader)
 		{
 		}
 
@@ -105,7 +105,7 @@ namespace cyRenderGraph
 		std::map<ImageKey, ImageCacheEntry> imageCache;
 		vk::PhysicalDevice physicalDevice;
 		vk::Device logicalDevice;
-		vk::detail::DispatchLoaderDynamic loader;
+		vk::DispatchLoaderDynamic loader;
 	};
 
 	class ImageViewCache
@@ -527,7 +527,7 @@ namespace cyRenderGraph
 	class RenderGraph
 	{
 	public:
-		RenderGraph(vk::PhysicalDevice _physicalDevice, vk::Device _logicalDevice, vk::detail::DispatchLoaderDynamic _loader) :
+		RenderGraph(vk::PhysicalDevice _physicalDevice, vk::Device _logicalDevice, vk::DispatchLoaderDynamic _loader) :
 			imagecache(_physicalDevice, _logicalDevice, _loader),
 			imageViewCache(_physicalDevice, _logicalDevice),
 			bufferCache(_physicalDevice, _logicalDevice),
@@ -989,7 +989,7 @@ namespace cyRenderGraph
 
 		vk::Device logicalDevice;
 		vk::PhysicalDevice physicalDevice;
-		vk::detail::DispatchLoaderDynamic loader;
+		vk::DispatchLoaderDynamic loader;
 		size_t imageAllocations = 0;
 	};
 

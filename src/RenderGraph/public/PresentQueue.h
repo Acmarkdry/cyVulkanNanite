@@ -3,8 +3,8 @@
 
 #include "ImageView.h"
 #include "Profiler.h"
+#include "RenderGraph.h"
 #include "RenderGraphLink.h"
-#include "ResourceProxy.h"
 #include "ShaderMemoryPool.h"
 #include "Swapchain.h"
 #include "WindowDesc.h"

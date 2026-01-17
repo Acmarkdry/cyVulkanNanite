@@ -5,6 +5,3 @@
 	path = assets
 	url = https://github.com/SaschaWillems/Vulkan-Assets
 	branch = main
-[submodule "external/gli"]
-	path = external/gli
-	url = https://github.com/g-truc/gli.git
