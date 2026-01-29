@@ -10,10 +10,10 @@
 
 namespace cyRenderGraph
 {
-	class RenderPassCahce
+	class RenderPassCache
 	{
 	public:
-		RenderPassCahce(vk::Device _logicalDevice) : logicalDevice(_logicalDevice)
+		RenderPassCache(vk::Device _logicalDevice) : logicalDevice(_logicalDevice)
 		{
 		}
 

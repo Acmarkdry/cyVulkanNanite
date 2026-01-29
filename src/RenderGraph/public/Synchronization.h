@@ -53,5 +53,42 @@ namespace cyRenderGraph
 	ImageAccessPattern GetSrcImageAccessPattern(ImageUsageTypes usageType);
 
 	ImageAccessPattern GetDstImageAccessPattern(ImageUsageTypes usageType);
-	
+
+	bool IsImageBarrierNeeded(ImageUsageTypes srcUsageType, ImageUsageTypes dstUsageType)
+	{
+		if (srcUsageType == ImageUsageTypes::GraphicsShaderRead && dstUsageType == ImageUsageTypes::GraphicsShaderRead) return false;
+		return true;
+	}
+
+	struct BufferAccessPattern
+	{
+		vk::PipelineStageFlags stage;
+		vk::AccessFlags accessMask;
+		QueueFamilyTypes queueFamilyType;
+	};
+
+	struct BufferBarrier
+	{
+		ImageAccessPattern srcAccessPattern;
+		ImageAccessPattern dstAccessPattern;
+	};
+
+	enum struct BufferUsageTypes
+	{
+		VertexBuffer,
+		GraphicsShaderReadWrite,
+		ComputeShaderReadWrite,
+		TransferDst,
+		TransferSrc,
+		None,
+		Unknown
+	};
+
+	BufferAccessPattern GetSrcBufferAccessPattern(BufferUsageTypes usageType);
+	BufferAccessPattern GetDstBufferAccessPattern(BufferUsageTypes usageType);
+
+	bool IsBufferBarrierNeeded(BufferUsageTypes scrUsageType, BufferUsageTypes dstUsageType)
+	{
+		return true;
+	}
 }

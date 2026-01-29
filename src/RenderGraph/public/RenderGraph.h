@@ -758,59 +758,23 @@ namespace cyRenderGraph
 		}
 		
 		// render graph核心函数
-		void Execute(vk::CommandBuffer commandBuffer, CpuProfiler *cpuProfiler, GpuProfiler *gpuProfiler)
-		{
-			// 先拿到资源进行复用
-			ResolveImages();
-			ResolveImageViews();
-			ResolveBuffers();
-			
-			for (size_t taskIndex = 0; taskIndex < tasks.size(); ++taskIndex)
-			{
-				auto &task = tasks[taskIndex];
-				switch (task.type)
-				{
-				case Task::Types::RenderPass:
-					{
-					
-					}break;
-					case Task::Types::ComputePass:
-					{
-					
-					}break;
-					case Task::Types::TransferPass:
-					{
-					
-					}break;
-					case Task::Types::ImagePresent:
-					{
-					
-					}break;
-				case Task::Types::FrameSyncBegin:
-				{
-				
-				}break;
-				case Task::Types::FrameSyncEnd:
-				{
-				
-				}break;
-
-				}
-			}
-			
-			FlushExternalImages(commandBuffer, cpuProfiler, gpuProfiler);
-			
-			renderPassDescs.clear();
-			transferPassDescs.clear();
-			imagePresentDescs.clear();
-			frameSyncBeginDescs.clear();
-			frameSyncEndDescs.clear();
-			tasks.clear();
-		}
+		void Execute(vk::CommandBuffer commandBuffer, CpuProfiler *cpuProfiler, GpuProfiler *gpuProfiler);
 
 		void FlushExternalImages(vk::CommandBuffer commandBuffer, CpuProfiler *cpuProfiler, GpuProfiler *gpuProfiler)
 		{
 		}
+
+		// 添加各种resource barrier
+		bool ImageViewContainsSubresource(ImageView *imageView, ImageData *imageData, uint32_t mipLevel, uint32_t arrayLayer);
+		ImageUsageTypes GetTaskImageSubresourceUsageType(size_t taskIndex, ImageData *imageData, uint32_t mipLevel, uint32_t arrayLayer);
+		BufferUsageTypes GetTaskBufferUsageType(size_t taskIndex, Buffer *buffer);
+		ImageUsageTypes GetLastImageSubresourceUsageType(size_t taskIndex, ImageData *imageData, uint32_t mipLevel, uint32_t arrayLayer);
+		BufferUsageTypes GetLastBufferUsageType(size_t taskIndex, Buffer *buffer);
+		void FlushImageTransitionBarriers(ImageData *imageData, vk::ImageSubresourceRange range, ImageUsageTypes srcUsageType, ImageUsageTypes dstUsageType, vk::PipelineStageFlags &srcStage, vk::PipelineStageFlags &dstStage, std::vector<vk::ImageMemoryBarrier> &imageBarriers);
+		void AddImageTransitionBarriers(ImageView *imageView, ImageUsageTypes dstUsageType, size_t dstTaskIndex, vk::PipelineStageFlags &srcStage, vk::PipelineStageFlags &dstStage, std::vector<vk::ImageMemoryBarrier> &imageBarriers);
+		void FlushBufferTransitionBarriers(Buffer *buffer, BufferUsageTypes srcUsageType, BufferUsageTypes dstUsageType, vk::PipelineStageFlags &srcStage, vk::PipelineStageFlags &dstStage, std::vector<vk::BufferMemoryBarrier> &bufferBarriers);
+		void AddBufferBarriers(Buffer *buffer, BufferUsageTypes dstUsageType, size_t dstTaskIndex, vk::PipelineStageFlags &srcStage, vk::PipelineStageFlags &dstStage, std::vector<vk::BufferMemoryBarrier> &bufferBarriers);
+
 		
 		// 资源复用
 		void ResolveImages()
@@ -862,6 +826,11 @@ namespace cyRenderGraph
 				}
 			}
 		}
+
+		ImageView *GetResolvedImageView(size_t taskIndex, ImageViewProxyId imageProxy)
+		{
+			return imageViewProxies.Get(imageProxy).resolvedImageView;
+		}
 		
 		void ResolveBuffers()
 		{
@@ -881,6 +850,11 @@ namespace cyRenderGraph
 					}break;
 				}
 			}
+		}
+
+		Buffer *GetResolvedBuffer(size_t taskIndex, BufferProxyId bufferProxyId)
+		{
+			return bufferProxies.Get(bufferProxyId).resolvedBuffer;
 		}
 
 	private:
@@ -984,7 +958,7 @@ namespace cyRenderGraph
 			return task;
 		}
 
-		RenderPassCahce renderPassCache;
+		RenderPassCache renderPassCache;
 		FramebufferCache frameBufferCache;
 
 		vk::Device logicalDevice;
@@ -1001,5 +975,6 @@ namespace cyRenderGraph
 	inline void ImageViewHandleInfo::SetDebugName(std::string name) const { renderGraph->SetImageViewProxyDebugName(imageViewProxyId, name); }
 
 	inline void BufferHandleInfo::Reset() { renderGraph->DeleteBuffer(bufferProxyId); }
+
 	// ─────────────────────────────────────────────────────────────────────────
 }

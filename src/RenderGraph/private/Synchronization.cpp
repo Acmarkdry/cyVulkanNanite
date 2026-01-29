@@ -227,5 +227,120 @@ namespace cyRenderGraph
 		}
 		return accessPattern;
 	}
-	
+
+	BufferAccessPattern GetSrcBufferAccessPattern(BufferUsageTypes usageType)
+	{
+		BufferAccessPattern accessPattern;
+		switch (usageType)
+		{
+		case BufferUsageTypes::VertexBuffer:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eVertexInput;
+				accessPattern.accessMask = vk::AccessFlags();
+				accessPattern.queueFamilyType = QueueFamilyTypes::Graphics;
+			}
+			break;
+		case BufferUsageTypes::GraphicsShaderReadWrite:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eVertexShader | vk::PipelineStageFlagBits::eFragmentShader;
+				accessPattern.accessMask = vk::AccessFlagBits::eShaderWrite;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Graphics;
+			}
+			break;
+		case BufferUsageTypes::ComputeShaderReadWrite:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eComputeShader;
+				accessPattern.accessMask = vk::AccessFlagBits::eShaderWrite;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Compute;
+			}
+			break;
+		case BufferUsageTypes::TransferDst:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eTransfer;
+				accessPattern.accessMask = vk::AccessFlagBits::eTransferWrite;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Transfer;
+			}
+			break;
+		case BufferUsageTypes::TransferSrc:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eTransfer;
+				accessPattern.accessMask = vk::AccessFlags();
+				accessPattern.queueFamilyType = QueueFamilyTypes::Transfer;
+			}
+			break;
+		case BufferUsageTypes::None:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eTopOfPipe;
+				accessPattern.accessMask = vk::AccessFlags();
+				accessPattern.queueFamilyType = QueueFamilyTypes::Undefined;
+			}
+			break;
+		case BufferUsageTypes::Unknown:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eBottomOfPipe;
+				accessPattern.accessMask = vk::AccessFlags();
+				accessPattern.queueFamilyType = QueueFamilyTypes::Undefined;
+			}
+			break;
+		}
+		return accessPattern;
+	}
+
+	BufferAccessPattern GetDstBufferAccessPattern(BufferUsageTypes usageType)
+	{
+		BufferAccessPattern accessPattern;
+		switch (usageType)
+		{
+		case BufferUsageTypes::VertexBuffer:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eVertexInput;
+				accessPattern.accessMask = vk::AccessFlagBits::eVertexAttributeRead;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Graphics;
+			}
+			break;
+		case BufferUsageTypes::GraphicsShaderReadWrite:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eVertexShader | vk::PipelineStageFlagBits::eFragmentShader;
+				accessPattern.accessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Graphics;
+			}
+			break;
+		case BufferUsageTypes::ComputeShaderReadWrite:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eComputeShader;
+				accessPattern.accessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Compute;
+			}
+			break;
+		case BufferUsageTypes::TransferDst:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eTransfer;
+				accessPattern.accessMask = vk::AccessFlagBits::eTransferWrite;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Transfer;
+			}
+			break;
+		case BufferUsageTypes::TransferSrc:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eTransfer;
+				accessPattern.accessMask = vk::AccessFlagBits::eTransferRead;
+				accessPattern.queueFamilyType = QueueFamilyTypes::Transfer;
+			}
+			break;
+		case BufferUsageTypes::None:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eBottomOfPipe;
+				accessPattern.accessMask = vk::AccessFlags();
+				accessPattern.queueFamilyType = QueueFamilyTypes::Undefined;
+			}
+			break;
+		case BufferUsageTypes::Unknown:
+			{
+				accessPattern.stage = vk::PipelineStageFlagBits::eBottomOfPipe;
+				accessPattern.accessMask = vk::AccessFlags();
+				accessPattern.queueFamilyType = QueueFamilyTypes::Undefined;
+			}
+			break;
+		}
+		return accessPattern;
+	}
 }
