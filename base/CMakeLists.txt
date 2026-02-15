@@ -22,6 +22,7 @@ target_include_directories(base PUBLIC
     ${CMAKE_SOURCE_DIR}/external
     ${CMAKE_SOURCE_DIR}/external/glm
     ${CMAKE_SOURCE_DIR}/external/gli
+    ${CMAKE_SOURCE_DIR}/external/glfw/include
     ${CMAKE_SOURCE_DIR}/external/imgui
     ${CMAKE_SOURCE_DIR}/external/tinygltf
     ${CMAKE_SOURCE_DIR}/external/ktx/include
@@ -34,6 +35,7 @@ if(WIN32)
         ${Vulkan_LIBRARY} 
         ${WINLIBS}
         nanite_core
+        glfw
     )
 else(WIN32)
     target_link_libraries(base PUBLIC
@@ -42,5 +44,6 @@ else(WIN32)
         ${WAYLAND_CLIENT_LIBRARIES} 
         ${CMAKE_THREAD_LIBS_INIT}
         nanite_core
+        glfw
     )
 endif(WIN32)

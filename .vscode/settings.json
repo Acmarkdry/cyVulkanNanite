@@ -1,3 +1,64 @@
 {
-    "kiroAgent.configureMCP": "Enabled"
+    "kiroAgent.configureMCP": "Enabled",
+
+    // CMake
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.generator": "Visual Studio 17 2022",
+    "cmake.configureSettings": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+        "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/vcpkglib/vcpkg.windows/scripts/buildsystems/vcpkg.cmake"
+    },
+    "cmake.configureArgs": [
+        "-A", "x64"
+    ],
+
+    // C/C++ IntelliSense
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+
+    // 文件关联
+    "files.associations": {
+        "*.comp": "glsl",
+        "*.vert": "glsl",
+        "*.frag": "glsl",
+        "*.geom": "glsl",
+        "*.tesc": "glsl",
+        "*.tese": "glsl",
+        "*.mesh": "glsl",
+        "*.task": "glsl",
+        "*.glsl": "glsl",
+        "*.hpp": "cpp",
+        "*.inl": "cpp"
+    },
+
+    // 搜索排除
+    "search.exclude": {
+        "**/build": true,
+        "**/external/glfw/docs": true,
+        "**/external/glfw/tests": true,
+        "**/external/glfw/examples": true,
+        "**/external/ktx": true,
+        "**/vcpkglib": true,
+        "**/*.spv": true
+    },
+
+    // 文件排除（资源管理器）
+    "files.exclude": {
+        "**/.git": true,
+        "**/build": true,
+        "**/*.spv": true
+    },
+
+    // 编辑器
+    "editor.tabSize": 4,
+    "editor.insertSpaces": false,
+    "editor.detectIndentation": false,
+    "[cpp]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": false
+    },
+    "[c]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": false
+    }
 }

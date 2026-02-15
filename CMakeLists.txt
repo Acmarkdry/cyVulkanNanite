@@ -134,6 +134,13 @@ ENDIF(WIN32)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/")
 
+# GLFW
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory(external/glfw)
+
 add_subdirectory(src/nanite)
 add_subdirectory(base)
 add_subdirectory(src/RenderGraph)

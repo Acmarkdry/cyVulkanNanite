@@ -1,0 +1,11 @@
+[
+    {
+        "name": "Visual Studio 2022 x64",
+        "visualStudio": "VisualStudio.17.0",
+        "visualStudioArchitecture": "x64",
+        "preferredGenerator": {
+            "name": "Visual Studio 17 2022",
+            "platform": "x64"
+        }
+    }
+]
