@@ -59,6 +59,16 @@ target_link_libraries(render_graph_test PRIVATE
     spirv-cross-core
 )
 
+# MSVC 并行编译 + 预编译头
+if(MSVC)
+    target_compile_options(render_graph_test PRIVATE /MP)
+endif()
+
+# 预编译头（vulkan.hpp、glm、imgui 只解析一次）
+target_precompile_headers(render_graph_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/private/pch.h
+)
+
 # 设置输出目录（可选）
 set_target_properties(render_graph_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
