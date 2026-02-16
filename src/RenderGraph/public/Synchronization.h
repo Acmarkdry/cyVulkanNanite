@@ -54,7 +54,7 @@ namespace cyRenderGraph
 
 	ImageAccessPattern GetDstImageAccessPattern(ImageUsageTypes usageType);
 
-	bool IsImageBarrierNeeded(ImageUsageTypes srcUsageType, ImageUsageTypes dstUsageType)
+	inline bool IsImageBarrierNeeded(ImageUsageTypes srcUsageType, ImageUsageTypes dstUsageType)
 	{
 		if (srcUsageType == ImageUsageTypes::GraphicsShaderRead && dstUsageType == ImageUsageTypes::GraphicsShaderRead) return false;
 		return true;
@@ -87,7 +87,7 @@ namespace cyRenderGraph
 	BufferAccessPattern GetSrcBufferAccessPattern(BufferUsageTypes usageType);
 	BufferAccessPattern GetDstBufferAccessPattern(BufferUsageTypes usageType);
 
-	bool IsBufferBarrierNeeded(BufferUsageTypes scrUsageType, BufferUsageTypes dstUsageType)
+	inline bool IsBufferBarrierNeeded(BufferUsageTypes scrUsageType, BufferUsageTypes dstUsageType)
 	{
 		return true;
 	}

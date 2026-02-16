@@ -3,9 +3,24 @@
 
 file(GLOB RENDER_GRAPH_SOURCES "private/*.cpp")
 file(GLOB RENDER_GRAPH_HEADERS "public/*.h")
+file(GLOB SCENE_HEADERS "scene/*.h")
+file(GLOB Render_Headers "Render/*.h")
+file(GLOB Render_Sources "Render/*.cpp")
+
+# ImGui 源文件
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+)
 
 # 改为可执行文件
-add_executable(render_graph_test ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS})
+add_executable(render_graph_test ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS} 
+${SCENE_HEADERS} ${IMGUI_SOURCES}
+${Render_Headers} ${Render_Sources}
+)
 
 # include 路径
 # 注意：
@@ -15,7 +30,10 @@ add_executable(render_graph_test ${RENDER_GRAPH_SOURCES} ${RENDER_GRAPH_HEADERS}
 target_include_directories(render_graph_test PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/public
+    ${CMAKE_CURRENT_SOURCE_DIR}/scene
     ${CMAKE_SOURCE_DIR}/external/glm
+    ${CMAKE_SOURCE_DIR}/external/imgui
+    ${Vulkan_INCLUDE_DIRS}
 )
 target_include_directories(render_graph_test SYSTEM PRIVATE
     ${CMAKE_SOURCE_DIR}/external/gli
@@ -35,8 +53,11 @@ target_compile_definitions(render_graph_test PRIVATE
     GLM_FORCE_IGNORE_VERSION
 )
 
-# 链接 base 库
-target_link_libraries(render_graph_test PRIVATE base)
+# 链接 base 库 + SPIRV-Cross（从源码编译）
+target_link_libraries(render_graph_test PRIVATE 
+    base
+    spirv-cross-core
+)
 
 # 设置输出目录（可选）
 set_target_properties(render_graph_test PROPERTIES

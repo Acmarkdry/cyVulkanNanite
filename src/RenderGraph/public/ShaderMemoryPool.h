@@ -95,7 +95,7 @@ namespace cyRenderGraph
 			assert(bufferInfo.size == sizeof(BufferType));
 			size_t totalOffset = currOffset + bufferInfo.offsetInSet;
 			assert(totalOffset + sizeof(BufferType) <= currSize);
-			return static_cast<BufferType*>((char*)dstMemory + totalOffset);
+			return reinterpret_cast<BufferType*>(static_cast<char*>(dstMemory) + totalOffset);
 		}
 
 		template <typename BufferType>
@@ -121,7 +121,7 @@ namespace cyRenderGraph
 
 			size_t totalOffset = currOffset + bufferInfo.offsetInSet + uniformInfo.offsetInBinding;
 			assert(totalOffset + sizeof(UniformType) < currSize);
-			return static_cast<UniformType*>((char*)dstMemory + totalOffset);
+			return reinterpret_cast<UniformType*>(static_cast<char*>(dstMemory) + totalOffset);
 		}
 
 	private:

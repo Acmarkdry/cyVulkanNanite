@@ -1,9 +1,9 @@
-#include "RenderGraph.h"
+﻿#include "RenderGraph.h"
 #include "RenderPassCache.h"
 
 namespace cyRenderGraph
 {
-	inline void RenderGraph::Execute(vk::CommandBuffer commandBuffer, CpuProfiler* cpuProfiler, GpuProfiler* gpuProfiler)
+	void RenderGraph::Execute(vk::CommandBuffer commandBuffer, CpuProfiler* cpuProfiler, GpuProfiler* gpuProfiler)
 	{
 		// 先拿到资源进行复用
 		ResolveImages();

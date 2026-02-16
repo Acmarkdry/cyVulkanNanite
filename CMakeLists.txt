@@ -141,6 +141,16 @@ set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/glfw)
 
+# SPIRV-Cross core（手动编译源码，避免官方 CMake 的 CLI/pkg-config 依赖）
+add_library(spirv-cross-core STATIC
+    external/spirv-cross/spirv_cross.cpp
+    external/spirv-cross/spirv_cross_parsed_ir.cpp
+    external/spirv-cross/spirv_parser.cpp
+    external/spirv-cross/spirv_cfg.cpp
+)
+target_include_directories(spirv-cross-core PUBLIC external/spirv-cross)
+set_target_properties(spirv-cross-core PROPERTIES FOLDER "External")
+
 add_subdirectory(src/nanite)
 add_subdirectory(base)
 add_subdirectory(src/RenderGraph)
