@@ -2,3 +2,4 @@
 *.spv
 /build
 /vcpkglib
+/.obsidian
