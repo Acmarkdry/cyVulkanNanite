@@ -2,22 +2,34 @@
 
 基于 Vulkan 实现的 UE5 Nanite（虚拟几何体）系统，包含 GPU 驱动的 BVH 遍历、混合软硬光栅化、Hi-Z 遮挡剔除与 PBR/IBL 着色管线。
 
-<!-- TODO: 补充效果截图 -->
-<!-- ![效果展示](screenshots/demo.png) -->
+## Feature
 
-## 核心特性
-
-- **GPU 驱动的 BVH 遍历** — 层次包围盒遍历完全在 GPU 端通过 Compute Shader 完成
-- **误差投影与 LOD 选择** — 基于屏幕空间误差度量的自动 LOD 切换，无需 CPU 回读
-- **混合光栅化** — 大三角形走硬件光栅化（Geometry Shader），亚像素小三角形走软件光栅化（Compute Shader）
-- **Hi-Z 遮挡剔除** — 层次 Z-Buffer 逐 mip 降采样，实现两趟遮挡剔除
-- **视锥剔除** — GPU 端视锥体剔除，集成在 BVH 遍历阶段
-- **Mesh 聚类与分组** — 基于 METIS 图分区的 Cluster 生成与 DAG 构建
-- **延迟着色 + PBR/IBL** — G-Buffer 着色管线，支持基于图像的环境光照
-- **Render Graph**（开发中）— 基于 Vulkan.hpp 的自动资源同步与布局转换
-- **Indirect Draw/Dispatch** — 全 GPU 驱动绘制，每帧零 CPU-GPU 同步
-
-## 技术栈
+- [x] mesh和lod生成
+- [x] cluster and cluster group实现
+- [x] bvh traversal
+- [x] soft rasterization
+- [x] hard rasterization
+- [x] hiz
+- [ ] Render Graph
+  - [x] Render Graph实现-> 这里打算转为使用vulkan.hpp，重写一套底层，因为很多依赖都要修改，放弃对于vulkan example的依赖。
+  - [ ] Render Graph已经实现，model，scene场景加载等需要重做，适配Nanite。
+- [ ] 性能分析
+  - [x] 性能分析功能开发
+  - [ ] 等待接入。
+- [x] mesh的Task Graph多线程处理
+- [ ] 现在渲染出来的是没有颜色的，还有点麻烦，games104课程我记得后面有讲，可以看一下是怎么做的。
+- [ ] GPU Driven Depth Culling
+- [ ] 更好的内存对齐方式。
+  - [x] 其实这里我的想法是能不能效仿asan，在最开始的代码中下毒，进行一个padding的验证，而且很麻烦的一点是cpu gpu没有对齐是没有任何warning的，vulkan validation layer对于这个没有任何防御方式
+  - [ ] 对于内存对齐方式，参考LegitEngine的实现，强制使用unpack去做。
+- [ ] GPU上的多线程并发优化
+- [x] Test功能
+- [ ] github action ci的接通
+## TODO Fix Bug
+- [x] 渲染出来没有几何细节，问题原因：CPU和GPU的内存对齐问题。
+- [ ] 软光栅的代码好像没有跑到。
+- [ ] bvh和error处理部分的渲染剔除模块有问题，导致在lod切换的时候会出现闪烁。
+## Technology 
 
 | 类别　　 | 技术　　　　　　　　　　　　　　　　　　　　|
 | ----------| ---------------------------------------------|
@@ -36,7 +48,6 @@ graph TB
     A[场景数据] --> B[BVH遍历]
     B --> C[视锥剔除]
     C --> D{可见物体}
-　　　　　　　　　　　 |
 
     D --> E[误差投影]
     E --> F[LOD选择]
@@ -111,7 +122,6 @@ msbuild cyVulkanNanite.sln /p:Configuration=Release
 
 ## 文档
 
-- [TODO & Bug 追踪](documents/TODO-Fix-Bug.md)
 - [Render Graph 设计思路](documents/RenderGraph-Design.md)
 - [RenderPass 资源与同步梳理](documents/RenderPass-Sync.md)
 
