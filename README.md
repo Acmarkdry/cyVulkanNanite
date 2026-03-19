@@ -120,6 +120,14 @@ cmake -D VCPKG_TARGET_TRIPLET=x64-windows-static ^
 msbuild cyVulkanNanite.sln /p:Configuration=Release
 ```
 
+## 效果截图
+
+![screenshot1](documents/screenshot/178363dac52e95c115efcfdfac0881e8.png)
+
+![screenshot2](documents/screenshot/c338d1d442340f1ca12001f6467335f7.png)
+
+![screenshot3](documents/screenshot/ca2099ce9ab1be101aaa37d868e52be9.png)
+
 ## 文档
 
 - [Render Graph 设计思路](documents/RenderGraph-Design.md)
