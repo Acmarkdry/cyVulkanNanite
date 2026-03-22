@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <sstream>
 #include <stack>
 #include <unordered_set>
 
@@ -992,7 +993,9 @@ namespace Nanite
     }
 
     std::string indent(currNode->depth, '\t');
-    std::cout << indent << "currNodeError: " << currNodeError << " boundingSphere: " << currNodeParentBoundingSphere.x << " " << currNodeParentBoundingSphere.y << " " << currNodeParentBoundingSphere.z << " " << currNodeParentBoundingSphere.w << std::endl;
+    std::ostringstream oss;
+    oss << indent << "currNodeError: " << currNodeError << " boundingSphere: " << currNodeParentBoundingSphere.x << " " << currNodeParentBoundingSphere.y << " " << currNodeParentBoundingSphere.z << " " << currNodeParentBoundingSphere.w << "\n";
+    std::cout << oss.str();
 }
 	
 }

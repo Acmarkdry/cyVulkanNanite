@@ -2,9 +2,19 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <sstream>
 
 namespace Nanite
 {
+    // ====================================================================
+    // 全局 METIS 互斥锁
+    // ====================================================================
+
+    std::mutex& GetMetisMutex()
+    {
+        static std::mutex metisMutex;
+        return metisMutex;
+    }
     // ====================================================================
     // GraphEvent
     // ====================================================================
@@ -52,24 +62,33 @@ namespace Nanite
     // GraphTask
     // ====================================================================
 
-    GraphTask::GraphTask(TaskFunction func,
-                         const std::vector<GraphEvent::Ptr>& prerequisites,
-                         GraphEvent::Ptr completionEvent)
+    GraphTask::GraphTask(TaskFunction func, GraphEvent::Ptr completionEvent)
         : function(std::move(func))
-        , prerequisitesRemaining(static_cast<int>(prerequisites.size()))
         , completionEvent(std::move(completionEvent))
     {
+    }
+
+    void GraphTask::CreateAndSetup(TaskFunction func,
+                         const std::vector<GraphEvent::Ptr>& prerequisites,
+                         GraphEvent::Ptr completionEvent)
+    {
+        auto task = std::make_unique<GraphTask>(std::move(func), std::move(completionEvent));
+        task->prerequisitesRemaining.store(static_cast<int>(prerequisites.size()), std::memory_order_relaxed);
+
         if (prerequisites.empty())
         {
-            // 无前置依赖，直接提交
-            TryDispatch();
+            // 无前置依赖，直接提交（所有权转移给线程池）
+            task->TryDispatch();
+            // TryDispatch 内部会 move 走 unique_ptr，此处 task 已为空
         }
         else
         {
-            // 注册到每个前置事件的后续列表
+            // 先获取裸指针用于注册依赖，所有权暂由 GraphEvent::AddSubsequent 管理
+            // 注意：最后一个 DecrementPrerequisites 会触发 TryDispatch，将所有权转移给线程池
+            auto* rawTask = task.release();
             for (auto& prereq : prerequisites)
             {
-                prereq->AddSubsequent(this);
+                prereq->AddSubsequent(rawTask);
             }
         }
     }
@@ -85,7 +104,8 @@ namespace Nanite
 
     void GraphTask::TryDispatch()
     {
-        TaskGraph::Get().Dispatch(this);
+        // 将自身包装为 unique_ptr 转移给线程池
+        TaskGraph::Get().Dispatch(std::unique_ptr<GraphTask>(this));
     }
 
     void GraphTask::Execute()
@@ -140,6 +160,10 @@ namespace Nanite
                 worker.join();
         }
         workers.clear();
+
+        // 清理队列中未执行的残留任务，防止内存泄漏
+        DrainRemainingTasks();
+
         initialized.store(false);
 
         std::cout << "[TaskGraph] Shutdown complete" << std::endl;
@@ -150,11 +174,11 @@ namespace Nanite
         Shutdown();
     }
 
-    void TaskGraph::Dispatch(GraphTask* task)
+    void TaskGraph::Dispatch(std::unique_ptr<GraphTask> task)
     {
         {
             std::lock_guard lock(queueMutex);
-            taskQueue.push(task);
+            taskQueue.push(std::move(task));
         }
         queueCV.notify_one();
     }
@@ -164,9 +188,7 @@ namespace Nanite
         const std::vector<GraphEvent::Ptr>& prerequisites)
     {
         auto event = GraphEvent::Create();
-        // GraphTask 在构造时会自动注册依赖或直接提交
-        // 使用 new 分配，Execute 完成后由调度器管理生命周期
-        new GraphTask(std::move(func), prerequisites, event);
+        GraphTask::CreateAndSetup(std::move(func), prerequisites, event);
         return event;
     }
 
@@ -182,7 +204,7 @@ namespace Nanite
     {
         while (true)
         {
-            GraphTask* task = nullptr;
+            std::unique_ptr<GraphTask> task;
             {
                 std::unique_lock lock(queueMutex);
                 queueCV.wait(lock, [this] {
@@ -194,7 +216,7 @@ namespace Nanite
 
                 if (!taskQueue.empty())
                 {
-                    task = taskQueue.front();
+                    task = std::move(taskQueue.front());
                     taskQueue.pop();
                 }
             }
@@ -202,8 +224,17 @@ namespace Nanite
             if (task)
             {
                 task->Execute();
-                delete task; // 任务执行完毕，释放内存
+                // unique_ptr 自动释放 GraphTask
             }
+        }
+    }
+
+    void TaskGraph::DrainRemainingTasks()
+    {
+        std::lock_guard lock(queueMutex);
+        while (!taskQueue.empty())
+        {
+            taskQueue.pop(); // unique_ptr 析构自动释放
         }
     }
 
@@ -226,6 +257,9 @@ namespace Nanite
         const int32_t batchCount = std::min(num, workerCount);
         const int32_t batchSize = (num + batchCount - 1) / batchCount;
 
+        // 用 shared_ptr 包装 body，避免按引用捕获局部变量的生命周期风险
+        auto sharedBody = std::make_shared<std::function<void(int32_t)>>(std::move(body));
+
         std::vector<GraphEvent::Ptr> events;
         events.reserve(batchCount);
 
@@ -235,10 +269,10 @@ namespace Nanite
             const int32_t end = std::min(begin + batchSize, num);
 
             events.push_back(TaskGraph::Get().CreateAndDispatchTask(
-                [begin, end, &body]()
+                [begin, end, sharedBody]()
                 {
                     for (int32_t i = begin; i < end; ++i)
-                        body(i);
+                        (*sharedBody)(i);
                 }));
         }
 
@@ -262,6 +296,8 @@ namespace Nanite
 
         const int32_t batchSize = (num + batchCount - 1) / batchCount;
 
+        auto sharedBody = std::make_shared<std::function<void(int32_t)>>(std::move(body));
+
         std::vector<GraphEvent::Ptr> events;
         events.reserve(batchCount);
 
@@ -271,10 +307,10 @@ namespace Nanite
             const int32_t end = std::min(begin + batchSize, num);
 
             events.push_back(TaskGraph::Get().CreateAndDispatchTask(
-                [begin, end, &body]()
+                [begin, end, sharedBody]()
                 {
                     for (int32_t i = begin; i < end; ++i)
-                        body(i);
+                        (*sharedBody)(i);
                 }));
         }
 

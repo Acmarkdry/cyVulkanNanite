@@ -14,6 +14,13 @@ namespace Nanite
     class TaskGraph;
 
     // ========================================================================
+    // 全局 METIS 互斥锁
+    // METIS 内部使用全局随机数状态，不保证线程安全，
+    // 所有并发调用 METIS_PartGraphKway 必须通过此锁串行化
+    // ========================================================================
+    std::mutex& GetMetisMutex();
+
+    // ========================================================================
     // GraphEvent — 任务完成事件，仿照 UE 的 FGraphEvent
     // 可作为其他任务的前置依赖（Prerequisites）
     // ========================================================================
@@ -51,8 +58,11 @@ namespace Nanite
     public:
         using TaskFunction = std::function<void()>;
 
-        // 构造任务，指定前置依赖
-        GraphTask(TaskFunction func, const std::vector<GraphEvent::Ptr>& prerequisites, GraphEvent::Ptr completionEvent);
+        // 构造函数（public 以支持 make_unique，但请通过 CreateAndSetup 使用）
+        GraphTask(TaskFunction func, GraphEvent::Ptr completionEvent);
+
+        // 工厂方法：创建任务并自动注册依赖或提交执行
+        static void CreateAndSetup(TaskFunction func, const std::vector<GraphEvent::Ptr>& prerequisites, GraphEvent::Ptr completionEvent);
 
         // 前置依赖满足一个，减少计数；归零时提交执行
         void DecrementPrerequisites();
@@ -89,7 +99,7 @@ namespace Nanite
         void Shutdown();
 
         // 提交一个就绪任务到线程池
-        void Dispatch(GraphTask* task);
+        void Dispatch(std::unique_ptr<GraphTask> task);
 
         // 创建并调度任务，返回完成事件
         // prerequisites: 前置依赖事件列表
@@ -110,9 +120,10 @@ namespace Nanite
         TaskGraph& operator=(const TaskGraph&) = delete;
 
         void WorkerLoop();
+        void DrainRemainingTasks();
 
         std::vector<std::thread> workers;
-        std::queue<GraphTask*> taskQueue;
+        std::queue<std::unique_ptr<GraphTask>> taskQueue;
         std::mutex queueMutex;
         std::condition_variable queueCV;
         std::atomic<bool> running{false};

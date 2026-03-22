@@ -1,4 +1,5 @@
 #include "ClusterGroup.h"
+#include "TaskGraph.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -9,7 +10,7 @@ namespace Nanite
 	{
 		const auto faceCount = clusterGroupFaces.size();
 
-		// Ô¤·ÖÅäÈİÁ¿£¬±ÜÃâ¶à´ÎÖØĞÂ·ÖÅä
+		// Ô¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½
 		triangleIndicesLocalGlobalMap.clear();
 		triangleIndicesLocalGlobalMap.reserve(faceCount);
 		triangleIndicesGlobalLocalMap.clear();
@@ -46,13 +47,13 @@ namespace Nanite
 			const auto groupIdx1 = mesh->property(clusterGroupIndexPropHandle, heh) - 1;
 			const auto groupIdx2 = mesh->property(clusterGroupIndexPropHandle, oppositeHeh) - 1;
 
-			// Ö»´¦ÀíÍ¬Ò»cluster groupÄÚµÄ±ß
+			// Ö»ï¿½ï¿½ï¿½ï¿½Í¬Ò»cluster groupï¿½ÚµÄ±ï¿½
 			if (groupIdx1 != groupIdx2) continue;
 
 			const auto localIdx1 = triangleIndicesGlobalLocalMap.at(fh1.idx());
 			const auto localIdx2 = triangleIndicesGlobalLocalMap.at(fh2.idx());
 
-			// Ìí¼ÓË«Ïò±ß
+			// ï¿½ï¿½ï¿½ï¿½Ë«ï¿½ï¿½ï¿½
 			localTriangleGraph.addEdge(localIdx1, localIdx2, 1);
 			localTriangleGraph.addEdge(localIdx2, localIdx1, 1);
 		}
@@ -68,30 +69,34 @@ namespace Nanite
 		const auto clusterSize = std::min(TARGET_CLUSTER_SIZE, vertexCount);
 		localClusterNum = vertexCount / clusterSize;
 
-		// µ¥Ò»¾ÛÀàÌØÊâ´¦Àí
+		// ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â´¦ï¿½ï¿½
 		if (localClusterNum <= 1)
 		{
 			std::fill(localTriangleClusterIndices.begin(), localTriangleClusterIndices.end(), 0);
 			return;
 		}
 
-		// Ê¹ÓÃvectorÌæ´úmalloc£¬×Ô¶¯ÄÚ´æ¹ÜÀí
+		// Ê¹ï¿½ï¿½vectorï¿½ï¿½ï¿½mallocï¿½ï¿½ï¿½Ô¶ï¿½ï¿½Ú´ï¿½ï¿½ï¿½ï¿½
 		idx_t ncon = 1;
 		std::vector<real_t> tpwgts(ncon * localClusterNum);
 
 		const auto weightPerCluster = static_cast<real_t>(clusterSize) / vertexCount;
 		std::fill(tpwgts.begin(), tpwgts.end(), weightPerCluster);
 
-		// METISÅäÖÃ
+		// METISåˆ†åŒºï¼ˆMETIS å†…éƒ¨æœ‰å…¨å±€çŠ¶æ€ï¼Œéœ€è¦åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨ï¼‰
 		idx_t options[METIS_NOPTIONS];
 		METIS_SetDefaultOptions(options);
 		options[METIS_OPTION_SEED] = METIS_RANDOM_SEED;
 
 		idx_t objVal = 0;
-		const auto result = METIS_PartGraphKway(&metisGraph.nvtxs, &ncon, metisGraph.xadj.data(), metisGraph.adjncy.data(), nullptr, // vwgt
-		                                        nullptr, // vsize
-		                                        metisGraph.adjwgt.data(), &localClusterNum, tpwgts.data(), nullptr, // ubvec
-		                                        options, &objVal, localTriangleClusterIndices.data());
+		idx_t result;
+		{
+			std::lock_guard lock(GetMetisMutex());
+			result = METIS_PartGraphKway(&metisGraph.nvtxs, &ncon, metisGraph.xadj.data(), metisGraph.adjncy.data(), nullptr, // vwgt
+			                                        nullptr, // vsize
+			                                        metisGraph.adjwgt.data(), &localClusterNum, tpwgts.data(), nullptr, // ubvec
+			                                        options, &objVal, localTriangleClusterIndices.data());
+		}
 
 		NaniteAssert(result == METIS_OK, "METIS_PartGraphKway failed");
 	}
